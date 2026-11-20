@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DSH 插件开发学习路线图 · 原型</title>
+<!--
+  原型：三种信息架构变体，用 ?variant=A|B|C 切换。
+  目的：确认最终单文件 HTML 教程的布局、阶段卡字段、代码块、术语提示、进度与链接策略。
+  内容只填了阶段 0 与阶段 3 的完整细节，其余阶段只给摘要，用来看密度而非当教程读。
+-->
+<style>
+:root{
+  --bg:#fbfaf7; --fg:#1f2328; --muted:#6b7280; --line:#e5e2da; --card:#fff;
+  --accent:#2f6f4e; --accent-fg:#fff; --code-bg:#f4f2ec; --warn:#b45309; --ok:#2f6f4e;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 6px 18px rgba(0,0,0,.06);
+  --radius:10px;
+}
+[data-theme=dark]{
+  --bg:#14171a; --fg:#e6e6e3; --muted:#9aa3ad; --line:#2a3037; --card:#1b1f23;
+  --accent:#6abf8b; --accent-fg:#0b1410; --code-bg:#101316; --warn:#f0a05a; --ok:#6abf8b;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--fg);
+  font:15px/1.65 -apple-system,"Segoe UI","Noto Sans SC","Microsoft YaHei",sans-serif;
+}
+a{color:var(--accent)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+code,kbd,pre{font-family:"Cascadia Code",Consolas,"JetBrains Mono",monospace}
+h1,h2,h3,h4{line-height:1.3;margin:0 0 .5em}
+p{margin:0 0 .9em}
+ul{margin:.2em 0 .9em;padding-left:1.3em}
+li{margin:.15em 0}
+
+/* ---------- shared top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:14px;
+  padding:10px 18px;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  border-bottom:1px solid var(--line);backdrop-filter:blur(8px);
+}
+.topbar .brand{font-weight:650;letter-spacing:.01em}
+.topbar .brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.topbar .spacer{flex:1}
+.seg{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--card)}
+.seg button{padding:4px 12px;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-fg)}
+.iconbtn{border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:13px;background:var(--card)}
+.iconbtn:hover{border-color:var(--accent)}
+
+/* ---------- progress ---------- */
+.progress{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.bar{width:140px;height:7px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent);width:0;transition:width .25s}
+
+/* ---------- generic stage pieces ---------- */
+.chip{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px;color:var(--muted)}
+.chip.hot{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.stage-title{display:flex;align-items:baseline;gap:10px;margin:0 0 6px}
+.stage-title .n{font-size:12px;letter-spacing:.12em;color:var(--muted);font-weight:600}
+.goal{color:var(--muted);margin:0 0 14px}
+.block{margin:18px 0}
+.block h4{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+
+/* code */
+.code{background:var(--code-bg);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin:10px 0}
+.code-head{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+.code-head .fname{font-family:monospace}
+.code-head .spacer{flex:1}
+.code-head button{font-size:12px;color:var(--muted);border:1px solid transparent;border-radius:6px;padding:2px 7px}
+.code-head button:hover{border-color:var(--line);color:var(--fg)}
+.code pre{margin:0;padding:10px 0;overflow:auto;font-size:12.5px;line-height:1.55}
+.code .ln{display:block;white-space:pre}
+.code .ln i{display:inline-block;width:3.2em;text-align:right;padding-right:1em;color:color-mix(in srgb,var(--muted) 70%,transparent);font-style:normal;user-select:none}
+
+/* term */
+.term{border-bottom:1px dashed var(--accent);cursor:help;position:relative}
+.term:hover::after{
+  content:attr(data-tip);position:absolute;left:0;top:1.6em;z-index:30;width:260px;
+  background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:8px;
+  padding:8px 10px;font-size:12.5px;line-height:1.5;box-shadow:var(--shadow);white-space:normal;
+}
+
+/* exercise */
+.ex{border:1px solid var(--line);border-radius:var(--radius);background:var(--card);padding:12px 14px;margin:10px 0}
+.ex-head{display:flex;align-items:flex-start;gap:10px}
+.ex-head input{margin-top:4px;accent-color:var(--accent)}
+.ex-head .t{font-weight:600}
+.ex details{margin:8px 0 0 26px}
+.ex summary{cursor:pointer;color:var(--accent);font-size:13px}
+.ex .accept{margin:8px 0 0 26px;font-size:13px;color:var(--muted)}
+.ex .refs{font-size:12.5px;color:var(--muted);margin:6px 0 0 26px}
+.ex .refs code{background:var(--code-bg);padding:1px 5px;border-radius:5px}
+
+/* quiz */
+.quiz{border-left:3px solid var(--accent);padding:2px 0 2px 14px;margin:12px 0}
+.quiz details{margin-top:4px}
+.quiz summary{cursor:pointer;font-size:13px;color:var(--accent)}
+
+/* ---------- A: book ---------- */
+.layout-a{display:grid;grid-template-columns:210px minmax(0,1fr);gap:30px;max-width:1320px;margin:0 auto;padding:26px 24px 90px}
+.toc{position:sticky;top:70px;align-self:start;font-size:13.5px}
+.toc .toc-h{font-size:11px;letter-spacing:.12em;color:var(--muted);margin:0 0 8px}
+.toc a{display:flex;justify-content:space-between;gap:8px;padding:5px 8px;border-radius:7px;color:var(--fg);text-decoration:none;line-height:1.35}
+.toc a:hover{background:var(--card)}
+.toc a.done{color:var(--muted)}
+.toc a .p{color:var(--muted);font-size:11.5px;white-space:nowrap;flex:none}
+.book>section{padding:26px 0;border-top:1px solid var(--line)}
+.book>section:first-child{border-top:0;padding-top:6px}
+.hero h1{font-size:25px;margin-bottom:6px}
+.hero p{color:var(--muted);max-width:62ch}
+
+/* ---------- B: map ---------- */
+.layout-b{max-width:1120px;margin:0 auto;padding:26px 22px 90px}
+.dash-head{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:22px}
+.dash-head h1{font-size:24px;margin:0}
+.stage-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.stage-card{
+  text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:16px;display:flex;flex-direction:column;gap:10px;min-height:170px;box-shadow:var(--shadow);
+}
+.stage-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.stage-card .num{font-size:12px;letter-spacing:.14em;color:var(--muted)}
+.stage-card h3{font-size:16px;margin:0}
+.stage-card .sum{color:var(--muted);font-size:13px;flex:1}
+.stage-card .foot{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.dots{display:flex;gap:4px}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.dots i.on{background:var(--accent)}
+.stage-card.locked{opacity:.55}
+.sheet-wrap{position:fixed;inset:0;z-index:60;display:none}
+.sheet-wrap.open{display:block}
+.sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.sheet{
+  position:absolute;right:0;top:0;bottom:0;width:min(680px,92vw);background:var(--bg);
+  border-left:1px solid var(--line);overflow:auto;padding:22px 26px 80px;box-shadow:var(--shadow);
+}
+.sheet .close{position:sticky;top:0;float:right;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px 10px}
+
+/* ---------- C: workbench ---------- */
+.layout-c{display:grid;grid-template-columns:210px minmax(0,1fr) 360px;gap:0;height:calc(100vh - 57px)}
+.rail{border-right:1px solid var(--line);padding:16px 10px;overflow:auto}
+.rail button{display:flex;width:100%;justify-content:space-between;gap:6px;padding:7px 9px;border-radius:8px;font-size:13.5px;text-align:left}
+.rail button:hover{background:var(--card)}
+.rail button[aria-current=true]{background:var(--card);border:1px solid var(--line)}
+.rail .p{color:var(--muted);font-size:11.5px}
+.doc{padding:22px 28px 90px;overflow:auto}
+.panel{border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;gap:2px;padding:8px;border-bottom:1px solid var(--line)}
+.tabs button{padding:5px 12px;border-radius:7px;font-size:13px;color:var(--muted)}
+.tabs button[aria-pressed=true]{background:var(--card);border:1px solid var(--line);color:var(--fg)}
+.tab-body{padding:14px 16px;overflow:auto;flex:1}
+.tab-body .ex{margin:0 0 10px}
+
+/* ---------- prototype bar ---------- */
+.proto-bar{
+  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:80;
+  display:flex;align-items:center;gap:4px;padding:5px;border-radius:999px;
+  background:#111;color:#fff;box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:13px;
+}
+.proto-bar button{color:#fff;padding:6px 12px;border-radius:999px}
+.proto-bar button:hover{background:rgba(255,255,255,.14)}
+.proto-bar .lbl{min-width:180px;text-align:center;font-weight:600}
+.proto-bar .proto-tag{font-size:10px;letter-spacing:.14em;opacity:.6;padding-left:10px}
+
+/* ---------- prototype note ---------- */
+.note-wrap{position:fixed;inset:0;z-index:90;display:none;background:rgba(0,0,0,.4);padding:6vh 16px}
+.note-wrap.open{display:block}
+.note{max-width:620px;margin:0 auto;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:22px 24px;max-height:86vh;overflow:auto;box-shadow:var(--shadow)}
+.note h3{margin-top:0}
+.note li{margin:.35em 0}
+.note .k{font-weight:600}
+
+/* ---------- print ---------- */
+@media print{
+  .topbar,.proto-bar,.note-wrap,.toc,.rail,.panel{display:none!important}
+  .layout-a{grid-template-columns:1fr;max-width:none}
+  .layout-c{display:block;height:auto}
+  .code{break-inside:avoid}
+  body{background:#fff;color:#000}
+}
+
+/* ---------- narrow ---------- */
+@media (max-width:920px){
+  .layout-a{grid-template-columns:1fr;gap:16px}
+  .toc{position:static;border-bottom:1px solid var(--line);padding-bottom:10px}
+  .toc a{display:inline-flex;margin-right:6px}
+  .stage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .layout-c{grid-template-columns:1fr;height:auto}
+  .rail{display:flex;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line)}
+  .rail button{width:auto;white-space:nowrap}
+  .panel{border-left:0;border-top:1px solid var(--line)}
+}
+@media (max-width:600px){
+  .stage-grid{grid-template-columns:1fr}
+  .topbar{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="proto-bar" id="protoBar"></div>
+<div class="note-wrap" id="noteWrap"><div class="note" id="note"></div></div>
+<script>
+"use strict";
+
+/* ================= data ================= */
+
+const EX = (id, title, hints, refs, accept) => ({ id, title, hints, refs, accept });
+
+const STAGES = [
+  {
+    n: 0, key: "env", title: "环境与最小插件", hours: "2–3h", path: "both",
+    goal: "建立「插件是什么、装到哪、怎么被加载」的实物感。",
+    covers: ["版本检查", "最小工具插件 3 件文件", "dsh plugin add", "--dump-config", "启动 profile 调用工具"],
+    docs: ["cordis-tutorial/01", "cookbook/extension-cookbook", "architecture（Profile / 组合包）"],
+    done: "能在 dsh 里调用自己写的工具并看到返回。",
+    exercises: [
+      EX("0.1", "环境自检",
+        ["`dsh --help` 看 profile 与 patch 参数。", "profile 目录在 `~/.dsh/profiles/<name>`。", "`--dump-config` 打印组合后的插件树；新 profile 默认只有 dsh-base，没有 app，直接启动会静默挂起。"],
+        ["08 票 Answer", "README.md 安装章节"],
+        "能说出插件装在哪里、`--dump-config` 里一个插件条目有哪些字段。"),
+      EX("0.2", "写一个 echo 工具插件",
+        ["最小可安装插件 = 模块 + `package.json`(`dsh.bundle.patch`) + `cordis.patch.yml`。", "纯 JS 直接用 `ctx.tools.register(原始 ToolDefinition)`，不必 import `defineTool`。", "先不装依赖、不编译，把 `index.js` 跑通加载，再补 TS。"],
+        ["08 票 Answer 的最小 index.js", "src/index.ts 的工具注册段"],
+        "dsh 里能调用 `echo` 并看到 `echoed`；`--dump-config` 只证明配置层，必须实际 boot 一次才算加载成功。"),
+      EX("0.3", "给 echo 加 prefix 配置",
+        ["Config 用 schemastery，字段给默认值。", "patch 的 `config` 是整体替换，不是深合并。", "改完用 `--dump-config` 确认最终值。"],
+        ["src/index.ts 的 Config", "cordis.patch.yml"],
+        "改 patch 后输出变化；能解释整体替换的坑。")
+    ],
+    quiz: [
+      ["一个插件被 dsh 加载，最少需要哪几个文件？",
+        "模块本身（导出 name / inject / apply）、`package.json`（含 `dsh.bundle.patch`）、`cordis.patch.yml`。TypeScript 与 .d.ts 是发布要求，不是加载前提。"],
+      ["`--dump-config` 能看到条目，就说明插件加载成功了吗？",
+        "不。它只把 bundle / profile / overlay 三层 YAML 组合后打印，不 import 模块。要证明加载，必须 boot 一次。"],
+      ["patch 里的 config 是深合并还是整体替换？",
+        "整体替换。只写一个字段会把同一条目的其余配置项丢掉。"],
+      ["`inject` 和 `dsh.client.inject` 是一回事吗？",
+        "不是。模块 `inject` 是 Cordis 服务依赖；`dsh.client.inject` 是包级到达边，只是信息性字段。"]
+    ],
+    code: {
+      file: "index.js（08 票实测可加载的最小型）",
+      lines: [
+        "export const name = 'dsh-plugin-smoke'",
+        "export const inject = ['tools']",
+        "",
+        "export function apply(ctx) {",
+        "  ctx.tools.register({",
+        "    name: 'echo',",
+        "    description: 'Echo the given text back.',",
+        "    parameters: {",
+        "      type: 'object',",
+        "      properties: { text: { type: 'string' } },",
+        "      required: ['text'],",
+        "      additionalProperties: false,",
+        "    },",
+        "    output: {",
+        "      schema: { type: 'string' },",
+        "      render: (_args, value) => [{ type: 'text', text: value }],",
+        "    },",
+        "    async execute(args) {",
+        "      return args.text",
+        "    },",
+        "  })",
+        "}"
+      ]
+    }
+  },
+  {
+    n: 1, key: "ts", title: "TS + ESM/Node 够用集", hours: "8–10h", path: "both",
+    goal: "能读懂源文件的类型标注与 Node 调用。",
+    covers: ["联合类型与收窄", "泛型", "as const", "模块", "fs/path/spawn", "Promise / AbortSignal"],
+    docs: ["TypeScript Handbook（联合类型、收窄）", "MDN（Promise、AbortSignal）", "Node docs（fs/promises、child_process）"],
+    done: "读懂 36 行的 `delegate-model.ts` 并改一处类型。",
+    exercises: [
+      EX("1.1", "给 `delegate-model.ts` 加联合类型分支", ["先看现有返回类型，模仿写一个分支。", "`as const` 让字面量数组保持窄类型。", "`typeof arr[number]` 取联合。"], ["src/delegate-model.ts:1-36"], "`npm run typecheck` 通过；能解释 `as const`。"),
+      EX("1.2", "写 Node 脚本统计任务", ["`node:fs/promises` 的 `readFile` + `JSON.parse`。", "用 `.mjs` 或 `--input-type=module`。", "先打印原始结构再聚合。"], ["`.dsh/tasks.json`"], "输出正确数字；能解释 ESM 与 CJS 的 `__dirname` 差异。"),
+      EX("1.3", "抽一个纯函数并写断言", ["找 `session-store.ts` 里的 key 生成逻辑。", "纯函数不碰文件系统。", "`node:test` 或 `node:assert` 都能跑。"], ["src/session-store.ts"], "3 个断言全过；能说出为什么纯函数更容易测。")
+    ],
+    quiz: [],
+    code: null
+  },
+  {
+    n: 2, key: "cordis", title: "Cordis 与插件骨架", hours: "6–8h", path: "both",
+    goal: "理解 name / inject / apply、service、fiber 与 Config schema。",
+    covers: ["`src/index.ts:1-181`", "apply 注册段", "remote.ts 服务注册（略读）"],
+    docs: ["cordis-primer", "cordis-tutorial 02–05", "subsystems/core"],
+    done: "能解释启动时注册了什么；改配置能生效。",
+    exercises: [
+      EX("2.1", "加配置项并观察生效", ["schemastery 字段要给默认值。", "`dsh --dump-config` 看最终配置。", "打印放在 apply 开头。"], ["src/index.ts:1-181", "cordis.patch.yml"], "启动日志出现自定义 greeting；能说出配置从 patch 到 apply 的路径。"),
+      EX("2.2", "`inject` vs `ctx.get` 对照实验", ["`src/index.ts:21-27` 有本项目的注释。", "硬依赖缺失时 fiber 会 PENDING。", "`ctx.get` 缺失返回 undefined。"], ["src/index.ts:21-27", "CHANGELOG 0.4.1"], "能说出 PENDING 与 undefined 的差异。"),
+      EX("2.3", "注册并消费一个服务", ["服务名不要和现有冲突。", "消费端用 `ctx.get` 避免加载顺序问题。", "观察卸载后服务是否消失。"], ["src/remote.ts 的服务注册段"], "服务能被取到；卸载后取不到。")
+    ],
+    quiz: [],
+    code: null
+  },
+  {
+    n: 3, key: "tools", title: "工具与技能", hours: "6–8h", path: "both",
+    goal: "能独立写带参数校验的工具和运行时技能。",
+    covers: ["defineTool 四段式", "ctx.tools.register", "ctx.skills.register", "presentCall", "timeoutMs", "delegation-skill（略读）"],
+    docs: ["cookbook/adding-a-tool", "subsystems/tools", "subsystems/skills"],
+    done: "独立写出能被模型调用、参数有校验的工具。",
+    exercises: [
+      EX("3.1", "给 `claude_code` 工具加 `label` 参数", ["可选字段用 `.optional()`。", "execute 的参数是解析后的对象。", "不要用 any 绕过类型。"], ["src/index.ts 的工具定义段"], "传 label 时结果包含它；不传时不报错。"),
+      EX("3.2", "修工具契约的三处偏离", ["先让 typecheck 报错，再逐个修。", "`z.union([...])` 做枚举。", "非法配置应在加载时失败。"], ["src/index.ts 的 defineTool 与 Config", "09 票 D4/D5"], "typecheck 通过；非法配置启动即报错。"),
+      EX("3.3", "写一个运行时技能", ["`ctx.skills.register`。", "`source: 'runtime'`。", "先看 `delegation-skill.ts` 的形状。"], ["src/delegation-skill.ts", "src/index.ts 的技能注册段"], "技能列表可见；能被模型读取；卸载后消失。")
+    ],
+    quiz: [
+      ["`output.render` 返回的东西给谁看？",
+        "模型。它是模型可见内容。UI 卡片是另一条路径（`presentCall` / `presentResult`），两者不要混。"],
+      ["参数校验发生在 execute 之前还是之后？",
+        "之前。`defineTool` 会按 ParameterSchemaSpec 校验模型生成的 arguments，execute 拿到的已经是校验后的值。"],
+      ["`defineTool` 和直接 `ctx.tools.register` 的差别？",
+        "`defineTool` 是类型辅助 + 默认渲染；`register` 直接吃原始 JSON Schema ToolDefinition（MCP 工具就是这么进来的）。"]
+    ],
+    code: {
+      file: "官方 cookbook 的最小工具形态",
+      lines: [
+        "export const name = 'my-tool'",
+        "export const inject = ['tools']",
+        "",
+        "export function apply(ctx) {",
+        "  ctx.tools.register(defineTool({",
+        "    name: 'read_file',",
+        "    description: 'Read a file from disk.',",
+        "    parameters: {",
+        "      path: { type: 'string', required: true },",
+        "      limit: { type: 'number' },",
+        "    },",
+        "    output: {",
+        "      schema: { type: 'string' },",
+        "      render: (_args, value) => [{ type: 'text', text: value }],",
+        "    },",
+        "    async execute(args, exec) {",
+        "      return readFile(args.path, { encoding: 'utf8', signal: exec.signal })",
+        "    },",
+        "  }))",
+        "}"
+      ]
+    }
+  },
+  {
+    n: 4, key: "host", title: "宿主业务载荷", hours: "12–14h", path: "full",
+    goal: "读懂一次委派从工具调用到 SDK 消息流。",
+    covers: ["tracker → session-store → output-file → remote → index", "execute / buildQueryOptions / runClaude", "live-shell（选读）"],
+    docs: ["subsystems/jobs、persistence、session、subagent", "cookbook/adding-an-llm-adapter（对照）"],
+    done: "画出「工具调用 → SDK → 事件 → remote」完整链路；能加一种事件。",
+    exercises: [
+      EX("4.1", "加 `notice` 事件并贯通", ["先改类型，让编译器找出所有分支。", "`client/api.ts` 有一段手写 wire 校验。", "`EventView` 的 switch 需要一个新分支。"], ["src/tracker.ts", "src/remote.ts", "src/client/api.ts", "src/client/EventView.tsx"], "面板显示 notice；typecheck 通过；没有漏掉的分支。"),
+      EX("4.2", "替换已弃用的 `stateOf`", ["看 `src/index.ts:194-215` 的上下文。", "官方 upgrade-guide 说旧 API 已弃用。", "替换后跑一次真实委派。"], ["src/index.ts:194-215", "09 票 D1"], "typecheck 通过；运行时行为不变。"),
+      EX("4.3", "跟一遍后台作业取消链路", ["`remote.ts` 与 `tracker.ts` 都有作业相关代码。", "官方推荐 `ctx.jobs.readAt` / `kill`。", "用日志证明 cancel 真的到了子进程。"], ["src/remote.ts", "src/tracker.ts", "09 票 D3"], "日志能证明取消链路；能解释前后台作业差异。")
+    ],
+    quiz: [],
+    code: null
+  },
+  {
+    n: 5, key: "client", title: "客户端 React 与面板", hours: "10–12h", path: "full",
+    goal: "能读懂并小改客户端面板。",
+    covers: ["client/types → api → OutputView → EventView → ClaudeCodeView → client/index", "styles / md（选读）"],
+    docs: ["subsystems/client-modules、slots、conversation、web-client"],
+    done: "面板上出现由你添加的可见元素并能读宿主数据。",
+    exercises: [
+      EX("5.1", "给任务列表加状态筛选", ["先找到三路 job 源合并后的数组。", "`useMemo` 的依赖数组不要漏。", "不要改数据源，只改渲染。"], ["src/client/ClaudeCodeView.tsx"], "筛选可切换；1 秒轮询不被破坏。"),
+      EX("5.2", "把 `installStyles()` 包进 `ctx.effect`", ["`ctx.effect` 的 cleanup 在卸载 / HMR 时执行。", "当前 installStyles 是一次性注入。", "09 票 D11 有说明。"], ["src/client/styles.ts", "src/client/index.ts", "09 票 D11"], "卸载后 `<style>` 被移除；HMR 不重复注入。"),
+      EX("5.3", "加一个 `StatusBadge` 组件", ["`client/types.ts` 有 wire 类型。", "先只做只读展示。", "样式加进 `styles.ts` 的类名表。"], ["src/client/types.ts", "src/client/ClaudeCodeView.tsx", "src/client/styles.ts"], "面板出现徽标并随选中任务更新。")
+    ],
+    quiz: [],
+    code: null
+  },
+  {
+    n: 6, key: "build", title: "构建、打包、安装、调试", hours: "4–6h", path: "both",
+    goal: "能自己构建、安装、调试插件。",
+    covers: ["两套 tsconfig", "esbuild", "assert-artifacts", "package.json 的 dsh / exports / files", "cordis.patch.yml", "版本兼容"],
+    docs: ["subsystems/core", "config-catalog", "cordis-tutorial/06"],
+    done: "构建并本地安装成功；新增模块不遗漏。",
+    exercises: [
+      EX("6.1", "新增模块并更新产物断言", ["`tsconfig.json` 的 include 会自动带上新文件。", "assert-artifacts 是手写清单。", "客户端新增模块还要改 tsconfig.client.json。"], ["scripts/assert-artifacts.mjs", "tsconfig*.json"], "`npm run build` 通过；断言覆盖新产物。"),
+      EX("6.2", "改版本范围并判断兼容", ["版本比较包含 prerelease。", "`engines.dsh` 存在时独占。", "devDependencies 不参与。"], ["01 票的版本规则", "package.json"], "判断有依据；能解释为什么 `0.2.2-rc.5` 在范围内。"),
+      EX("6.3", "模拟一次安装与调试", ["先看 `--dump-config` 里条目是否出现。", "启动日志会指出缺失的服务 / 模块。", "01 票有「未写稳定 id 会重挂」的坑。"], ["01 票的坑清单", "~/.dsh/profiles/<name>"], "能定位并修复；能说出调试路径。")
+    ],
+    quiz: [],
+    code: null
+  },
+  {
+    n: 7, key: "capstone", title: "毕业项目", hours: "12–16h", path: "both",
+    goal: "独立开发一个简单插件，按官方最佳实践写。",
+    covers: ["三选一：文本统计工具 / 外部 CLI 委托 / 客户端 UI 小组件", "需求、设计、实现、构建、安装、README、演示"],
+    docs: ["按所选项目回查"],
+    done: "安装、加载、README、至少一个可演示行为、能解释取舍。",
+    exercises: [],
+    quiz: [],
+    code: null
+  }
+];
+
+const VARIANTS = [
+  { key: "A", name: "章节式" },
+  { key: "B", name: "关卡地图" },
+  { key: "C", name: "工作台" }
+];
+
+const TERMS = {
+  "Cordis": "底层插件框架。插件 = 一个导出 name / inject / apply 的模块。",
+  "fiber": "一次插件挂载的运行实例。依赖缺失时它会停在 PENDING。",
+  "inject": "声明硬依赖的 Cordis 服务。缺一个，整个 fiber 不启动。",
+  "slot": "客户端 UI 的具名挂载点，插件往里面注册组件。",
+  "bundle": "一组插件条目的组合包，profile 按顺序叠加它。",
+  "profile": "一套叠加好的插件栈，dsh 用它启动（web / headless / tui）。",
+  "patch": "在 bundle 之上追加的一层 YAML，用来改配置、禁用条目或插入插件。"
+};
+
+/* ================= state ================= */
+
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v } catch { return d } },
+  set(k, v) { try { localStorage.setItem(k, v) } catch {} }
+};
+
+const TOTAL_EX = STAGES.reduce((n, s) => n + s.exercises.length, 0);
+
+function isDone(exId) { return LS.get(`dsh-learn:exercise-${exId}`, "") === "done" }
+function setDone(exId, on) { LS.set(`dsh-learn:exercise-${exId}`, on ? "done" : "") }
+function stageDone(s) { return s.exercises.filter(e => isDone(e.id)).length }
+
+function progress() {
+  const done = STAGES.reduce((n, s) => n + stageDone(s), 0);
+  return { done, total: TOTAL_EX, pct: TOTAL_EX ? Math.round(done / TOTAL_EX * 100) : 0 };
+}
+
+let currentPath = LS.get("dsh-learn:path", "full");
+let variant = new URLSearchParams(location.search).get("variant")?.toUpperCase() || "A";
+if (!VARIANTS.some(v => v.key === variant)) variant = "A";
+let currentStage = 0;
+let openStage = null;
+
+/* ================= helpers ================= */
+
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const attr = s => esc(s).replace(/"/g, "&quot;");
+const mdInline = s => esc(s)
+  .replace(/`([^`]+)`/g, "<code>$1</code>")
+  .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+
+function termize(s) {
+  let out = mdInline(s);
+  for (const [k, tip] of Object.entries(TERMS)) {
+    out = out.replace(new RegExp(`\\b${k}\\b`, "g"),
+      `<span class="term" data-tip="${esc(tip)}">${k}</span>`);
+  }
+  return out;
+}
+
+function codeBlock(code) {
+  if (!code) return "";
+  const lines = code.lines.map((l, i) =>
+    `<span class="ln"><i>${i + 1}</i>${esc(l) || " "}</span>`).join("");
+  return `<div class="code">
+    <div class="code-head"><span class="fname">${esc(code.file)}</span><span class="spacer"></span>
+      <button data-copy="${attr(code.lines.join("\n"))}">复制</button></div>
+    <pre><code>${lines}</code></pre></div>`;
+}
+
+function exCard(ex, compact) {
+  const done = isDone(ex.id);
+  return `<div class="ex" data-ex="${ex.id}">
+    <label class="ex-head">
+      <input type="checkbox" data-check="${ex.id}" ${done ? "checked" : ""}>
+      <span class="t">${esc(ex.id)} ${esc(ex.title)}</span>
+    </label>
+    <details><summary>思路提示（${ex.hints.length} 条）</summary><ul>
+      ${ex.hints.map(h => `<li>${termize(h)}</li>`).join("")}
+    </ul></details>
+    <div class="refs">参考：${ex.refs.map(r => `<code>${esc(r)}</code>`).join(" · ")}</div>
+    <div class="accept">验收：${termize(ex.accept)}</div>
+  </div>`;
+}
+
+function quizBlock(stage) {
+  if (!stage.quiz || !stage.quiz.length) return "";
+  return `<div class="block"><h4>自测</h4>
+    ${stage.quiz.map(([q, a], i) => `<div class="quiz">
+      <div><strong>Q${i + 1}.</strong> ${termize(q)}</div>
+      <details><summary>参考答案</summary><div>${termize(a)}</div></details>
+    </div>`).join("")}</div>`;
+}
+
+function stageHead(stage) {
+  return `<div class="meta">
+      <span class="chip">阶段 ${stage.n}</span>
+      <span class="chip">${stage.hours}</span>
+      ${stage.path === "full" ? `<span class="chip hot">完整路径必修</span>` : `<span class="chip">两条路径都走</span>`}
+      ${stage.exercises.length ? `<span class="chip" data-stage-count="${stage.n}">${stageDone(stage)} / ${stage.exercises.length} 练习</span>` : ""}
+    </div>
+    <h2 class="stage-title"><span class="n">STAGE ${stage.n}</span> ${esc(stage.title)}</h2>
+    <p class="goal">${termize(stage.goal)}</p>`;
+}
+
+function stageBody(stage, opts = {}) {
+  const withCode = opts.code !== false;
+  return `<div class="block"><h4>覆盖内容</h4><div>${stage.covers.map(c => `<span class="chip" style="margin:0 6px 6px 0">${termize(c)}</span>`).join("")}</div></div>
+    <div class="block"><h4>阅读材料</h4><ul>${stage.docs.map(d => `<li>${termize(d)}</li>`).join("")}</ul></div>
+    ${withCode && stage.code ? `<div class="block"><h4>关键代码</h4>${codeBlock(stage.code)}</div>` : ""}
+    ${stage.exercises.length ? `<div class="block"><h4>练习</h4>${stage.exercises.map(e => exCard(e)).join("")}</div>` : ""}
+    ${quizBlock(stage)}
+    <div class="block"><h4>完成标志</h4><p>${termize(stage.done)}</p></div>`;
+}
+
+function topbar() {
+  const p = progress();
+  return `<header class="topbar">
+    <div class="brand">DSH 插件开发学习路线图<small>原型 · 只填了阶段 0 与阶段 3 的完整内容</small></div>
+    <div class="spacer"></div>
+    <div class="seg" role="group" aria-label="路径">
+      <button data-path="short" aria-pressed="${currentPath === "short"}">最短路径</button>
+      <button data-path="full" aria-pressed="${currentPath === "full"}">完整路径</button>
+    </div>
+    <div class="progress"><span>${p.done}/${p.total}</span><span class="bar"><i style="width:${p.pct}%"></i></span><span>${p.pct}%</span></div>
+    <button class="iconbtn" data-theme-toggle>${document.documentElement.dataset.theme === "dark" ? "浅色" : "深色"}</button>
+    <button class="iconbtn" data-note>原型说明</button>
+  </header>`;
+}
+
+/* ================= variant A: book ================= */
+
+function renderA() {
+  const toc = STAGES.map(s => `<a href="#stage-${s.n}" class="${stageDone(s) === s.exercises.length && s.exercises.length ? "done" : ""}">
+      <span>${s.n}. ${esc(s.title)}</span><span class="p">${s.hours}</span></a>`).join("");
+  const body = STAGES.map(s => {
+    const skipped = s.path === "full" && currentPath === "short";
+    return `<section id="stage-${s.n}">
+      ${stageHead(s)}
+      ${skipped
+        ? `<p class="goal">最短路径跳过这一阶段。<button class="iconbtn" data-expand="${s.n}">仍然展开</button></p><div id="exp-${s.n}" hidden>${stageBody(s)}</div>`
+        : stageBody(s)}
+    </section>`;
+  }).join("");
+  return `<div class="layout-a">
+    <nav class="toc"><p class="toc-h">目录</p>${toc}</nav>
+    <main class="book">
+      <div class="hero">
+        <h1>从 dsh-claude-delegate 入手，学会开发 DSH 插件</h1>
+        <p>8 个阶段、${TOTAL_EX} 个练习、一个毕业项目。项目主线 + 按需补 Cordis；逐模块覆盖 20 个源文件，不逐行。</p>
+      </div>
+      ${body}
+    </main>
+  </div>`;
+}
+
+/* ================= variant B: map ================= */
+
+function renderB() {
+  const p = progress();
+  const cards = STAGES.map(s => {
+    const skipped = s.path === "full" && currentPath === "short";
+    const dots = s.exercises.map(e => `<i class="${isDone(e.id) ? "on" : ""}"></i>`).join("");
+    return `<button class="stage-card ${skipped ? "locked" : ""}" data-open-stage="${s.n}">
+      <span class="num">STAGE ${s.n} · ${s.hours}</span>
+      <h3>${esc(s.title)}</h3>
+      <span class="sum">${esc(s.goal)}</span>
+      <span class="foot">${s.exercises.length ? `<span class="dots">${dots}</span><span>${stageDone(s)}/${s.exercises.length}</span>` : `<span>毕业项目 · 三选一</span>`}
+        ${skipped ? `<span class="chip hot">完整路径</span>` : ""}</span>
+    </button>`;
+  }).join("");
+  return `<div class="layout-b">
+    <div class="dash-head">
+      <h1>学习地图</h1>
+      <p class="goal" style="margin:0">点开任意阶段看详情。当前路径：${currentPath === "full" ? "完整（约 60–77h）" : "最短（约 35h）"}。</p>
+    </div>
+    <div class="stage-grid">${cards}</div>
+    <div class="sheet-wrap" id="sheetWrap"><div class="sheet-bg" data-close-sheet></div>
+      <aside class="sheet" id="sheet"></aside></div>
+  </div>`;
+}
+
+function openSheet(n) {
+  const s = STAGES[n];
+  const sheet = document.getElementById("sheet");
+  const wrap = document.getElementById("sheetWrap");
+  if (!sheet || !wrap) return;
+  openStage = n;
+  sheet.innerHTML = `<button class="close" data-close-sheet>关闭</button>${stageHead(s)}${stageBody(s)}`;
+  wrap.classList.add("open");
+}
+
+/* ================= variant C: workbench ================= */
+
+function renderC() {
+  const s = STAGES[currentStage];
+  const rail = STAGES.map(st => `<button data-stage="${st.n}" aria-current="${st.n === currentStage}">
+      <span>${st.n}. ${esc(st.title)}</span><span class="p" data-rail-count="${st.n}">${stageDone(st)}/${st.exercises.length || "—"}</span>
+    </button>`).join("");
+  const panel = `<div class="tabs">
+      <button data-tab="ex" aria-pressed="true">练习</button>
+      <button data-tab="code" aria-pressed="false">代码</button>
+      <button data-tab="quiz" aria-pressed="false">自测</button>
+    </div>
+    <div class="tab-body" id="tabBody">${tabContent(s, "ex")}</div>`;
+  return `<div class="layout-c">
+    <nav class="rail">${rail}</nav>
+    <main class="doc">
+      ${stageHead(s)}
+      <div class="block"><h4>覆盖内容</h4><div>${s.covers.map(c => `<span class="chip" style="margin:0 6px 6px 0">${termize(c)}</span>`).join("")}</div></div>
+      <div class="block"><h4>阅读材料</h4><ul>${s.docs.map(d => `<li>${termize(d)}</li>`).join("")}</ul></div>
+      <div class="block"><h4>完成标志</h4><p>${termize(s.done)}</p></div>
+    </main>
+    <aside class="panel">${panel}</aside>
+  </div>`;
+}
+
+function tabContent(s, tab) {
+  if (tab === "code") return s.code ? codeBlock(s.code) : `<p class="goal">这一阶段没有内嵌代码，正文里按需给片段。</p>`;
+  if (tab === "quiz") return s.quiz && s.quiz.length ? quizBlock(s) : `<p class="goal">本阶段自测题在正文末尾。</p>`;
+  return s.exercises.length ? s.exercises.map(e => exCard(e, true)).join("") : `<p class="goal">这一阶段是毕业项目，练习即项目本身。</p>`;
+}
+
+/* ================= mount / events ================= */
+
+const root = document.getElementById("app");
+
+function render() {
+  const view = variant === "A" ? renderA() : variant === "B" ? renderB() : renderC();
+  root.innerHTML = topbar() + view;
+  renderBar();
+  if (variant === "B" && openStage !== null) openSheet(openStage);
+}
+
+function renderBar() {
+  const bar = document.getElementById("protoBar");
+  const v = VARIANTS.find(x => x.key === variant);
+  bar.innerHTML = `<button data-cycle="-1" aria-label="上一个变体">←</button>
+    <span class="lbl">${v.key} · ${v.name}</span>
+    <button data-cycle="1" aria-label="下一个变体">→</button>
+    <span class="proto-tag">PROTOTYPE</span>`;
+}
+
+function setVariant(k, push = true) {
+  variant = k;
+  openStage = null;
+  if (push) history.replaceState(null, "", `?variant=${k}`);
+  render();
+}
+
+function cycleVariant(dir) {
+  const i = VARIANTS.findIndex(v => v.key === variant);
+  const next = VARIANTS[(i + dir + VARIANTS.length) % VARIANTS.length];
+  setVariant(next.key);
+}
+
+function refreshProgressOnly() {
+  const p = progress();
+  document.querySelectorAll(".progress").forEach(el => {
+    el.innerHTML = `<span>${p.done}/${p.total}</span><span class="bar"><i style="width:${p.pct}%"></i></span><span>${p.pct}%</span>`;
+  });
+}
+
+function refreshCounts() {
+  STAGES.forEach(s => {
+    document.querySelectorAll(`[data-stage-count="${s.n}"]`).forEach(el => {
+      el.textContent = `${stageDone(s)} / ${s.exercises.length} 练习`;
+    });
+    document.querySelectorAll(`[data-rail-count="${s.n}"]`).forEach(el => {
+      el.textContent = `${stageDone(s)}/${s.exercises.length || "—"}`;
+    });
+  });
+}
+
+function copyText(text) {
+  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text).catch(() => {});
+  const ta = document.createElement("textarea");
+  ta.value = text; document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy") } catch {}
+  ta.remove();
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-cycle],[data-path],[data-theme-toggle],[data-note],[data-open-stage],[data-close-sheet],[data-stage],[data-tab],[data-copy],[data-expand]");
+  if (!t) return;
+
+  if (t.dataset.cycle) return cycleVariant(Number(t.dataset.cycle));
+
+  if (t.dataset.path) {
+    currentPath = t.dataset.path;
+    LS.set("dsh-learn:path", currentPath);
+    return render();
+  }
+  if (t.hasAttribute("data-theme-toggle")) {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    LS.set("dsh-learn:theme", next);
+    return render();
+  }
+  if (t.hasAttribute("data-note")) {
+    document.getElementById("noteWrap").classList.add("open");
+    return;
+  }
+  if (t.dataset.openStage !== undefined) return openSheet(Number(t.dataset.openStage));
+  if (t.hasAttribute("data-close-sheet")) {
+    openStage = null;
+    document.getElementById("sheetWrap")?.classList.remove("open");
+    return;
+  }
+  if (t.dataset.stage !== undefined) {
+    currentStage = Number(t.dataset.stage);
+    return render();
+  }
+  if (t.dataset.tab) {
+    document.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-pressed", b === t));
+    const s = STAGES[currentStage];
+    document.getElementById("tabBody").innerHTML = tabContent(s, t.dataset.tab);
+    return;
+  }
+  if (t.hasAttribute("data-copy")) {
+    copyText(t.getAttribute("data-copy"));
+    const old = t.textContent;
+    t.textContent = "已复制";
+    setTimeout(() => { t.textContent = old }, 1200);
+    return;
+  }
+  if (t.dataset.expand !== undefined) {
+    const box = document.getElementById("exp-" + t.dataset.expand);
+    if (box) { box.hidden = false; t.remove(); }
+    return;
+  }
+});
+
+document.addEventListener("change", (e) => {
+  const cb = e.target.closest("[data-check]");
+  if (!cb) return;
+  setDone(cb.dataset.check, cb.checked);
+  refreshProgressOnly();
+  refreshCounts();
+  if (variant === "B") render();
+});
+
+// close note on backdrop
+document.getElementById("noteWrap").addEventListener("click", (e) => {
+  if (e.target.id === "noteWrap") e.target.classList.remove("open");
+});
+
+document.addEventListener("keydown", (e) => {
+  const tag = document.activeElement?.tagName;
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(tag) || document.activeElement?.isContentEditable) return;
+  if (e.key === "ArrowLeft") cycleVariant(-1);
+  if (e.key === "ArrowRight") cycleVariant(1);
+  if (e.key === "Escape") {
+    document.getElementById("sheetWrap")?.classList.remove("open");
+    document.getElementById("noteWrap").classList.remove("open");
+  }
+});
+
+/* ================= note ================= */
+
+document.getElementById("note").innerHTML = `
+  <h3>这是一份原型，不是教程</h3>
+  <p>三种信息架构变体，用底部黑条或键盘 ← → 切换。内容只填了阶段 0 与阶段 3 的完整细节，其余阶段只有摘要——请按密度和交互判断，不要按内容完整度判断。</p>
+  <h3>想请你确认的 8 件事</h3>
+  <ol>
+    <li><span class="k">布局</span>：A 左侧目录 + 长文；B 关卡卡片 + 抽屉；C 三栏工作台。窄屏都已折叠，可以拖窗口试。</li>
+    <li><span class="k">阶段字段</span>：目标 / 覆盖内容 / 阅读材料 / 关键代码 / 练习 / 自测 / 完成标志。够不够？多不多？</li>
+    <li><span class="k">代码块</span>：文件名标签 + 行号 + 复制按钮，不引第三方高亮（离线单文件）。行号目前只是装饰，跳转靠正文里的 <code>文件:行号</code> 文本。</li>
+    <li><span class="k">术语提示</span>：正文里带下划线的词悬停有解释（Cordis / fiber / inject / slot / bundle / profile / patch）。</li>
+    <li><span class="k">进度</span>：练习勾选写入 <code>localStorage</code>，刷新不丢；每阶段显示 x/y；顶部总进度。自测题不判分，答案折叠。</li>
+    <li><span class="k">视觉</span>：深/浅色切换（右上角）；打印时隐藏导航、目录、切换栏。</li>
+    <li><span class="k">链接策略</span>：仓库文件用相对路径 <code>../../src/...</code>；官方文档用 <code>file:///E:/nodejs/...</code>。换机器时文档链接会失效，需要降级为「章节名 + 安装目录相对路径」。</li>
+    <li><span class="k">规模</span>：目标单文件 &lt; 500KB；长文默认展开，阶段 4/5 在最短路径下折叠。</li>
+  </ol>
+  <h3>已知的取舍</h3>
+  <ul>
+    <li>A 适合线性通读与打印，但总览弱；B 总览强，但读长文要多一次点击；C 适合边读边看代码，但每屏信息少、窄屏最吃亏。</li>
+    <li>B 的抽屉、C 的标签页都做了真实交互，可以直接点。</li>
+  </ul>
+`;
+
+/* ================= boot ================= */
+
+document.documentElement.dataset.theme =
+  new URLSearchParams(location.search).get("theme") || LS.get("dsh-learn:theme", "light");
+render();
+</script>
+</body>
+</html>
