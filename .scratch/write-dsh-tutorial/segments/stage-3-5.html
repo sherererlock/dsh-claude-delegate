@@ -1,0 +1,621 @@
+<!-- ===== stage 3 ===== -->
+
+<div class="block">
+  <h4>覆盖内容</h4>
+  <div>
+    <span class="chip" style="margin:0 6px 6px 0">defineTool 四段式</span>
+    <span class="chip" style="margin:0 6px 6px 0">parameters 与运行时校验</span>
+    <span class="chip" style="margin:0 6px 6px 0">output.schema</span>
+    <span class="chip" style="margin:0 6px 6px 0">output.render</span>
+    <span class="chip" style="margin:0 6px 6px 0">presentCall</span>
+    <span class="chip" style="margin:0 6px 6px 0">timeoutMs</span>
+    <span class="chip" style="margin:0 6px 6px 0">ctx.tools.register</span>
+    <span class="chip" style="margin:0 6px 6px 0">ctx.skills.register</span>
+    <span class="chip" style="margin:0 6px 6px 0">SkillRegistration</span>
+  </div>
+</div>
+
+<div class="block">
+  <h4>阅读材料</h4>
+  <ul>
+    <li><code>cookbook/adding-a-tool</code>：最小工具、四段结构、<code>execute</code> 约定。</li>
+    <li><code>subsystems/tools</code>：参数 DSL、<code>InferArgs</code>、规范输出、<code>timeoutMs</code> 的校验规则。</li>
+    <li><code>subsystems/skills</code>：运行时技能的注册与生命周期。</li>
+    <li><code>src/index.ts:1188-1480</code>：本项目唯一的工具定义；对照 <code>parameters</code>、<code>output</code>、<code>execute</code>、<code>presentCall</code>。</li>
+    <li><code>src/index.ts:1174-1176</code>：两个运行时技能的注册点。</li>
+    <li><code>src/delegation-skill.ts:12-18</code>：<code>SkillRegistration</code> 的字段形状；正文选读。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>关键代码</h4>
+  <p><code>defineTool</code> 收四段：身份（<code>name</code> + <code>description</code>）、<code>parameters</code>、<code>output</code>（<code>schema</code> + <code>render</code>）、<code>execute</code>。外加一个可选的 <code>timeoutMs</code>。运行时先按 <code>parameters</code> 解析并校验模型传来的 <code>arguments</code>，失败就返回工具错误，不会进 <code>execute</code>；<code>execute</code> 的返回值再按 <code>output.schema</code> 校验，然后交给 <code>output.render</code>。模型看到的是 <code>render</code> 返回的 content blocks，不是 <code>execute</code> 的原始对象。</p>
+  <div class="code">
+    <div class="code-head"><span class="fname">cookbook/adding-a-tool（官方最小形态）</span></div>
+    <pre><code><span class="ln"><i>1</i>import { readFile } from 'node:fs/promises'</span>
+<span class="ln"><i>2</i>import type { Context } from '@deepseek-ai/cordis'</span>
+<span class="ln"><i>3</i>import { defineTool } from '@deepseek-ai/dsh-tools'</span>
+<span class="ln"><i>4</i> </span>
+<span class="ln"><i>5</i>export const name = 'my-tool'</span>
+<span class="ln"><i>6</i>export const inject = ['tools']</span>
+<span class="ln"><i>7</i> </span>
+<span class="ln"><i>8</i>export function apply(ctx: Context) {</span>
+<span class="ln"><i>9</i>  ctx.tools.register(defineTool({</span>
+<span class="ln"><i>10</i>    name: 'read_file',</span>
+<span class="ln"><i>11</i>    description: 'Read a file from disk.',          // what the model sees</span>
+<span class="ln"><i>12</i>    parameters: {</span>
+<span class="ln"><i>13</i>      path: { type: 'string', required: true, description: 'Absolute path' },</span>
+<span class="ln"><i>14</i>      limit: { type: 'number' },                     // optional by default</span>
+<span class="ln"><i>15</i>    },</span>
+<span class="ln"><i>16</i>    output: {</span>
+<span class="ln"><i>17</i>      schema: { type: 'string' },</span>
+<span class="ln"><i>18</i>      render: (_args, value) => [{ type: 'text', text: value }],</span>
+<span class="ln"><i>19</i>    },</span>
+<span class="ln"><i>20</i>    async execute(args, exec) {</span>
+<span class="ln"><i>21</i>      return readFile(args.path, { encoding: 'utf8', signal: exec.signal })</span>
+<span class="ln"><i>22</i>    },</span>
+<span class="ln"><i>23</i>  }))</span>
+<span class="ln"><i>24</i>}</span></code></pre>
+  </div>
+  <p><code>parameters</code> 是一个隐式的属性表：每个属性写 <code>required: true</code> 就是必填，不写就是可选。显式对象节点要声明 <code>additionalProperties: true | false</code>。schema 能表达的约束（类型、必填、枚举、联合、嵌套）会先校验；schema 表达不了的（非空字符串、正数、跨字段关系）仍要在 <code>execute</code> 里检查，并用 <code>ToolArgsError</code> 拒绝。</p>
+  <p><code>output.render</code> 只负责模型可见的内容；UI 卡片是另一条路径，用 <code>presentCall</code> / <code>presentResult</code> 声明。本项目的 <code>presentCall</code>（<code>src/index.ts:1474-1479</code>）返回一个 generic 卡片，和 <code>output.render</code> 互不影响。<code>timeoutMs</code> 必须是正的有限值；配置里写 0 会让工具注册失败。</p>
+</div>
+
+<div class="block">
+  <h4>练习</h4>
+  <p class="placeholder-note">练习前：<code>git switch -c practice/stage-3</code>；练完切回 <code>main</code>。每道练习的验收都在这张卡里勾选。</p>
+
+  <div class="ex" data-ex="3.1">
+    <label class="ex-head">
+      <input type="checkbox" data-check="3.1">
+      <span class="t"><span class="ex-id">3.1</span>给 claude_code 工具加 label 参数</span>
+    </label>
+    <p>在 <code>claude_code</code> 的 <code>parameters</code> 里加一个可选的 <code>label: string</code>，在 <code>execute</code> 里读取它，并让返回结果带上这个 label。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li>可选参数不要写 <code>required: true</code>；如果换成 schemastery，用 <code>.optional()</code>。</li>
+        <li><code>execute</code> 的 <code>args</code> 是校验后的对象，直接读 <code>args.label</code>，不要再解析一遍。</li>
+        <li>先加字段让 typecheck 报错，再补映射；不要用 <code>any</code> 绕过去。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/index.ts:1206-1287</code> · <code>src/index.ts:1329-1360</code></div>
+    <div class="accept">验收：传 label 时结果包含它；不传时不报错；<code>npm run typecheck</code> 通过。</div>
+  </div>
+
+  <div class="ex" data-ex="3.2">
+    <label class="ex-head">
+      <input type="checkbox" data-check="3.2">
+      <span class="t"><span class="ex-id">3.2</span>修工具契约的三处偏离</span>
+    </label>
+    <p>修三处：把 <code>execute(args: any)</code> 和 <code>render(_args: any, value: any)</code> 改成 <code>defineTool</code> 推断出的类型；给 <code>output.schema</code> 补上 <code>required</code>；把 <code>Config</code> 里的 <code>permissionMode</code> 和 <code>effort</code> 从无约束字符串改成枚举。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li>先删掉显式 <code>any</code>，让 <code>defineTool</code> 的 <code>InferArgs</code> / <code>InferValue</code> 接手；报错的地方才是需要收窄的地方。</li>
+        <li><code>output.schema</code> 是 JSON Schema 时写 <code>required: ['ok']</code>；是 schemastery 时给字段加 <code>.required()</code>。两选一，别混用。</li>
+        <li>非法配置应该在加载时失败，不是等 <code>execute</code> 里再兜底。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/index.ts:98-181</code> · <code>src/index.ts:1206-1329</code> · 09 票 D4/D5</div>
+    <div class="accept">验收：typecheck 通过；patch 里把 <code>permissionMode</code> 写成拼错的值会在启动时报错；<code>required: ['task']</code> 生效。</div>
+  </div>
+
+  <div class="ex" data-ex="3.3">
+    <label class="ex-head">
+      <input type="checkbox" data-check="3.3">
+      <span class="t"><span class="ex-id">3.3</span>写一个运行时技能</span>
+    </label>
+    <p>注册一个 <code>my-tips</code> 运行时技能，内容是一段「什么时候用 echo、什么时候用 text_stats」的简短规程。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li>用 <code>ctx.skills.register</code>，<code>source</code> 写 <code>'runtime'</code>。</li>
+        <li>先照 <code>delegation-skill.ts</code> 的 <code>SkillRegistration</code> 形状写 <code>name</code> / <code>description</code> / <code>whenToUse</code> / <code>content</code>。</li>
+        <li>技能正文是给模型读的规程，写触发条件和步骤，不要写代码注释式的一句话。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/delegation-skill.ts:12-18</code> · <code>src/index.ts:1174-1176</code></div>
+    <div class="accept">验收：技能列表可见；模型能读到内容；卸载插件后技能消失；正文没有 TODO。</div>
+  </div>
+</div>
+
+<div class="block">
+  <h4>自测</h4>
+
+  <div class="quiz">
+    <div><strong>Q1.</strong> <code>defineTool</code> 的四段分别是什么？哪一段写业务逻辑？</div>
+    <details><summary>参考答案</summary><div>身份（<code>name</code> + <code>description</code>）、<code>parameters</code>、<code>output</code>（<code>schema</code> + <code>render</code>）、<code>execute</code>。只有 <code>execute</code> 写业务逻辑；<code>output.render</code> 只是把校验后的规范值格式化成模型可见内容。<code>timeoutMs</code> 是附加的调度元数据。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q2.</strong> 参数校验发生在 <code>execute</code> 之前还是之后？校验失败时 <code>execute</code> 会跑吗？</div>
+    <details><summary>参考答案</summary><div>之前。注册表按 <code>parameters</code> 校验模型传来的 arguments，失败就走工具错误路径，<code>execute</code> 不会执行。所以 <code>execute</code> 里不用再写一遍类型和必填检查。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q3.</strong> <code>execute</code> 返回的对象和 <code>output.render</code> 返回的 content blocks，哪个是模型看到的？</div>
+    <details><summary>参考答案</summary><div><code>render</code> 的返回值。execute 的返回值先按 <code>output.schema</code> 校验，再交给 render；模型上下文里只有 render 产出的 content blocks。execute 的返回值是给程序化调用方和 render 用的规范值。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q4.</strong> <code>presentCall</code> 和 <code>output.render</code> 有什么区别？</div>
+    <details><summary>参考答案</summary><div><code>output.render</code> 决定模型可见内容；<code>presentCall</code> 决定 UI 的 pending 卡片（标题、图标、原始参数）。两者互不影响，UI 展示失败也不该让工具结果失败。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q5.</strong> <code>timeoutMs</code> 写 0 会发生什么？</div>
+    <details><summary>参考答案</summary><div>注册表要求 <code>timeoutMs</code> 是正的有限值，0 可能让工具注册失败。配置里要给正数；长任务按需放大，不要用 0 表示「不超时」。</div></details>
+  </div>
+</div>
+
+<div class="block">
+  <h4>官方推荐 vs 本项目做法</h4>
+
+  <div class="ex" id="bp-3-tool-contract">
+    <p><strong>官方推荐：</strong><code>parameters</code> 用属性表写清楚类型与必填，让 <code>defineTool</code> 在 <code>execute</code> 前完成校验并推断 <code>args</code>；<code>output.schema</code> 声明规范返回值，<code>output.render</code> 只负责模型可见内容；<code>timeoutMs</code> 是正有限值。出处：<code>cookbook/adding-a-tool</code>、<code>subsystems/tools</code>。</p>
+    <p><strong>本项目做法：</strong><code>parameters</code> 用的是正确的属性表（<code>src/index.ts:1206-1287</code>），但 <code>execute(args: any, exec)</code>（<code>:1329</code>）和 <code>render(_args: any, value: any)</code>（<code>:1308</code>）显式写了 <code>any</code>；<code>output.schema</code> 有 <code>additionalProperties: false</code> 和 properties，但没有 <code>required</code>（<code>:1288-1307</code>）；<code>Config.timeoutMs</code> 只有 <code>z.number()</code>，没有下限（<code>:110</code>）。</p>
+    <p><strong>差异：</strong>schema 还在，类型契约没了。<code>execute</code> 里 <code>args</code> 可以是任何东西，<code>render</code> 里 <code>value</code> 也是；输出少一个字段照样能渲染。调用方传错参数时，错误信息来自运行时而不是类型检查。</p>
+    <p><strong>原因：</strong>这个工具有二十多个可选参数，显式 <code>any</code> 是让 1481 行文件先通过 typecheck 的最快改法；输出 schema 是照着旧 JSON Schema 写的，<code>required</code> 当时没补。fork 自上游，历史写法一直沿用。</p>
+    <p><strong>你该怎么做：</strong>新工具照 cookbook 写，别写 <code>any</code>。改这个工具时先删 <code>any</code>，让类型错误把要收窄的地方列出来；给输出补上你承诺的 <code>required</code>；给 <code>timeoutMs</code> 加 <code>.min(1)</code>。读本项目时把这几处当历史写法，不要当模板。</p>
+  </div>
+
+  <div class="ex" id="bp-3-config-enums">
+    <p><strong>官方推荐：</strong>配置里有限的取值集合用 <code>z.union([...])</code> 或等价枚举，非法值在加载时失败。出处：<code>cordis-tutorial/05-config</code>、<code>config-catalog</code>。</p>
+    <p><strong>本项目做法：</strong><code>permissionMode: z.string()</code>（<code>src/index.ts:106</code>）和 <code>effort: z.string()</code>（<code>:116</code>）都没有枚举；只有 <code>bypassPermissions</code> 在运行时检查配套的 <code>allowDangerouslySkipPermissions</code>（<code>:342-346</code>）。同一文件里的 <code>thinkingMode</code> 却用了 <code>z.union([...THINKING_MODES])</code>（<code>:118</code>），工具参数层的 <code>permissionMode</code> 也用了 <code>enum</code>（<code>:1214-1218</code>）。</p>
+    <p><strong>差异：</strong>patch 里把 <code>acceptEdits</code> 拼错，配置能加载，错误值一路传到 SDK；工具参数层反而比配置层严。</p>
+    <p><strong>原因：</strong><code>permissionMode</code> 和 <code>effort</code> 的合法集合来自 Claude Code CLI，随上游版本变化；作者选择透传，避免本地枚举把新值卡住。</p>
+    <p><strong>你该怎么做：</strong>自己插件的配置用 <code>z.union</code> 锁死已知集合。如果确实要跟随上游，至少在 <code>apply</code> 开头校验一次并给出可读错误，不要让它跑到 SDK 才失败。</p>
+  </div>
+</div>
+
+<div class="block">
+  <h4>本节「不要照抄」</h4>
+  <ul>
+    <li>不要照抄 <code>execute(args: any)</code> 和 <code>render(_args: any, value: any)</code>。schema 在，类型却丢了，复制时很容易一起带过去。</li>
+    <li>不要照抄没有 <code>required</code> 的 <code>output.schema</code>。你承诺返回哪个字段，就让 schema 也这么承诺。</li>
+    <li>不要把 <code>permissionMode</code> / <code>effort</code> 写成无约束的 <code>z.string()</code>。</li>
+    <li>不要用 <code>timeoutMs: 0</code> 表示不超时；注册表要求正数。</li>
+    <li>不要把二十多个参数全塞进一个工具。先问每个参数是不是每次调用都需要；不需要的放到配置里。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>完成标志</h4>
+  <p>你能独立写出一个被模型调用、参数有校验、输出有 schema 的工具；能说清校验发生在 <code>execute</code> 之前，<code>output.render</code> 才是模型看到的内容；也能注册一个随插件一起注册和卸载的运行时技能。</p>
+</div>
+
+<!-- ===== stage 4 ===== -->
+
+<div class="block">
+  <h4>覆盖内容</h4>
+  <div>
+    <span class="chip" style="margin:0 6px 6px 0">tracker.ts 双流</span>
+    <span class="chip" style="margin:0 6px 6px 0">session-store.ts 续话</span>
+    <span class="chip" style="margin:0 6px 6px 0">output-file.ts 回读</span>
+    <span class="chip" style="margin:0 6px 6px 0">remote.ts @Remote</span>
+    <span class="chip" style="margin:0 6px 6px 0">index.ts execute / buildQueryOptions / runClaude</span>
+    <span class="chip" style="margin:0 6px 6px 0">ClaudeEvent</span>
+    <span class="chip" style="margin:0 6px 6px 0">ctx.jobs.start</span>
+    <span class="chip" style="margin:0 6px 6px 0">resume plan</span>
+    <span class="chip" style="margin:0 6px 6px 0">live-shell.ts（选读）</span>
+  </div>
+</div>
+
+<div class="block">
+  <h4>阅读材料</h4>
+  <ul>
+    <li><code>subsystems/jobs</code>：生产方、消费式 <code>read</code>、非消费式 <code>readAt</code>、<code>kill</code>、名册与观测流。</li>
+    <li><code>subsystems/persistence</code>、<code>subsystems/session</code>：会话恢复与投影。</li>
+    <li><code>subsystems/subagent</code>：DSH 自己的子代理机制，和 Claude Code 的 subagent 分开看。</li>
+    <li><code>cookbook/adding-an-llm-adapter</code>：对照外部模型适配器怎么接进工具链。</li>
+    <li>源码顺序：<code>src/tracker.ts</code> → <code>src/session-store.ts</code> → <code>src/output-file.ts</code> → <code>src/remote.ts</code> → <code>src/index.ts:881-1172</code>。</li>
+    <li><code>src/live-shell.ts</code>：选读。看它为什么存在，以及 SDK 为什么不转发内置 Bash 的 stdout。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>关键代码</h4>
+  <p>一次委派的主链路：<code>execute</code> 收参数 → <code>sessions.plan</code> 决定继续还是新开会话 → 前台直接跑，后台交给 <code>jobs.start</code> → <code>runWithSession</code> → <code>runClaude</code> → <code>query()</code> 拿到 SDK 消息流。<code>runClaude</code> 把消息分给两个观察者：<code>onDelta</code> 是给模型 <code>job_output</code> 的文本流，<code>onEvent</code> 是给面板的结构化事件流。两条流独立，面板读事件不会消耗模型要读的字节。</p>
+  <div class="code">
+    <div class="code-head"><span class="fname">src/index.ts:722-754（节选）</span></div>
+    <pre><code><span class="ln"><i>722</i>    for await (const msg of stream) {</span>
+<span class="ln"><i>723</i>      if (msg.type === 'assistant') {</span>
+<span class="ln"><i>724</i>        sessionId = msg.session_id</span>
+<span class="ln"><i>725</i>        if (msg.error) failure = msg.error</span>
+<span class="ln"><i>726</i>        for (const block of msg.message.content as any[]) {</span>
+<span class="ln"><i>727</i>          if (block.type === 'text') {</span>
+<span class="ln"><i>728</i>            output += block.text</span>
+<span class="ln"><i>729</i>            // Partial deltas already painted this text; emit only whatever the</span>
+<span class="ln"><i>730</i>            // stream did not cover, so the panel never shows it twice.</span>
+<span class="ln"><i>731</i>            const covered = deltaText.length > 0 && block.text.startsWith(deltaText)</span>
+<span class="ln"><i>732</i>            const rest = covered ? block.text.slice(deltaText.length) : block.text</span>
+<span class="ln"><i>733</i>            if (rest) onEvent?.({ type: 'text', text: rest })</span>
+<span class="ln"><i>734</i>            deltaText = ''</span>
+<span class="ln"><i>735</i>          } else if (block.type === 'thinking') {</span>
+<span class="ln"><i>736</i>            const thinking = typeof block.thinking === 'string' ? block.thinking : ''</span>
+<span class="ln"><i>737</i>            if (thinking) {</span>
+<span class="ln"><i>738</i>              onEvent?.({</span>
+<span class="ln"><i>739</i>                type: 'thinking',</span>
+<span class="ln"><i>740</i>                thinking,</span>
+<span class="ln"><i>741</i>                ...(typeof block.signature === 'string' ? { signature: block.signature } : {}),</span>
+<span class="ln"><i>742</i>              })</span>
+<span class="ln"><i>743</i>            }</span>
+<span class="ln"><i>744</i>          } else if (block.type === 'tool_use') {</span>
+<span class="ln"><i>745</i>            toolsUsed.add(block.name)</span>
+<span class="ln"><i>746</i>            onDelta?.(`\n[tool] ${block.name}\n`)</span>
+<span class="ln"><i>747</i>            onEvent?.({</span>
+<span class="ln"><i>748</i>              type: 'tool_use',</span>
+<span class="ln"><i>749</i>              ...(typeof block.id === 'string' ? { id: block.id } : {}),</span>
+<span class="ln"><i>750</i>              name: String(block.name),</span>
+<span class="ln"><i>751</i>              input: toEventInput(block.input),</span>
+<span class="ln"><i>752</i>            })</span>
+<span class="ln"><i>753</i>          }</span>
+<span class="ln"><i>754</i>        }</span></code></pre>
+  </div>
+  <p>SDK 的 <code>assistant</code> 消息按 content block 拆成 <code>text</code> / <code>thinking</code> / <code>tool_use</code>；<code>user</code> 消息里的 <code>tool_result</code> 也转成事件；<code>stream_event</code> 的 text delta 同时喂给两条流，所以面板能边生成边显示；<code>result</code> 消息给出 cost、turns、duration，最后用来 settle。</p>
+  <div class="code">
+    <div class="code-head"><span class="fname">src/remote.ts:101-121</span></div>
+    <pre><code><span class="ln"><i>101</i>  @Remote</span>
+<span class="ln"><i>102</i>  async listJobs(sessionId: string): Promise&lt;JobInfoWire[]&gt; {</span>
+<span class="ln"><i>103</i>    return this.tracker.list(sessionId).map((job) => ({ ...toJobInfo(job), model: job.model ?? null }))</span>
+<span class="ln"><i>104</i>  }</span>
+<span class="ln"><i>105</i> </span>
+<span class="ln"><i>106</i>  /**</span>
+<span class="ln"><i>107</i>   * Incremental output from an absolute offset. There is no server-side cursor,</span>
+<span class="ln"><i>108</i>   * so any number of panels (or windows) can read the same job independently.</span>
+<span class="ln"><i>109</i>   */</span>
+<span class="ln"><i>110</i>  @Remote</span>
+<span class="ln"><i>111</i>  async readOutput(sessionId: string, jobId: string, fromOffset: number): Promise&lt;ReadOutputResult&gt; {</span>
+<span class="ln"><i>112</i>    const job = this.tracker.require(sessionId, jobId)</span>
+<span class="ln"><i>113</i>    const offset = Number.isSafeInteger(fromOffset) &amp;&amp; fromOffset &gt; 0 ? fromOffset : 0</span>
+<span class="ln"><i>114</i>    const chunk = job.read(offset)</span>
+<span class="ln"><i>115</i>    return {</span>
+<span class="ln"><i>116</i>      text: chunk.text,</span>
+<span class="ln"><i>117</i>      nextOffset: chunk.nextOffset,</span>
+<span class="ln"><i>118</i>      truncated: chunk.truncated,</span>
+<span class="ln"><i>119</i>      status: job.status,</span>
+<span class="ln"><i>120</i>    }</span>
+<span class="ln"><i>121</i>  }</span></code></pre>
+  </div>
+  <p><code>ClaudeCodeRemote</code> 是普通 <code>TypertRemoteService</code>。api-gateway 的 SRC 模式反射 <code>@Remote</code> 方法，把方法名和参数名直接当 wire 字段（<code>claudeCode/listJobs</code>、<code>claudeCode/readOutput</code>）。<code>readOutput</code> 用绝对偏移，任意多个面板都能从头或从断点读；<code>tracker.ts</code> 的文本环用 <code>absoluteBase</code> 实现同样的语义（<code>src/index.ts:910-953</code>）。</p>
+  <p><code>session-store.ts</code> 把「工作流名 + 目录」映射到 Claude 会话 id，并写回磁盘；<code>output-file.ts</code> 只读被事件流登记过的持久化输出文件（<code>tracker.allowOutputPath</code>），面板不能要求宿主读任意路径。</p>
+</div>
+
+<div class="block">
+  <h4>练习</h4>
+  <p class="placeholder-note">练习前：<code>git switch -c practice/stage-4</code>；练完切回 <code>main</code>。这组练习只在完整路径必做。</p>
+
+  <div class="ex" data-ex="4.1">
+    <label class="ex-head">
+      <input type="checkbox" data-check="4.1">
+      <span class="t"><span class="ex-id">4.1</span>加 notice 事件并贯通</span>
+    </label>
+    <p>在 <code>ClaudeEvent</code> 联合里加 <code>{ type: 'notice'; text: string }</code>，让 <code>tracker</code> 接受它、<code>remote</code> 的 wire 校验放行它、<code>EventView</code> 把它渲染成一行提示。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li>先改类型，让编译器列出所有要补的分支：tracker 的 shrink/序列化、<code>client/api.ts</code> 的 <code>toEvent</code>、<code>EventView</code> 的 switch。</li>
+        <li><code>client/api.ts:49-110</code> 是手写 wire 校验，未知类型会被丢掉；不加分支，事件到客户端就消失。</li>
+        <li><code>EventView</code> 只加一个最简分支，不要顺手改其他渲染。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/tracker.ts:34-69</code> · <code>src/remote.ts:101-140</code> · <code>src/client/api.ts:49-110</code> · <code>src/client/EventView.tsx</code></div>
+    <div class="accept">验收：面板显示 notice；typecheck 通过；grep 不到漏掉的分支。</div>
+  </div>
+
+  <div class="ex" data-ex="4.2">
+    <label class="ex-head">
+      <input type="checkbox" data-check="4.2">
+      <span class="t"><span class="ex-id">4.2</span>替换已弃用的 stateOf</span>
+    </label>
+    <p>把 <code>sessionProjections.stateOf(session, 'modelSelection')</code> 换成 <code>exec.agent.model.current()</code>（或所有者内部的 awaited <code>handle.stateOf</code>），保持模型选择行为不变。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li>先看 <code>src/index.ts:194-215</code> 的 <code>currentMainSelection</code>，注意它还有 <code>agent.options.model</code> 兜底。</li>
+        <li>官方 <code>upgrade-guide/v0.2.1-rc.2</code> 明确说注册表级 <code>stateOf</code> 已弃用；普通读取用 <code>agent.model.current()</code>。</li>
+        <li>替换后跑一次真实委派，确认 <code>followMainModel</code> 仍然生效。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/index.ts:194-215</code> · 09 票 D1 · <code>upgrade-guide/v0.2.1-rc.2</code></div>
+    <div class="accept">验收：typecheck 通过；运行时行为不变；能说出为什么弃用、为什么不再需要 <code>ctx.get('sessionProjections')</code>。</div>
+  </div>
+
+  <div class="ex" data-ex="4.3">
+    <label class="ex-head">
+      <input type="checkbox" data-check="4.3">
+      <span class="t"><span class="ex-id">4.3</span>跟一遍后台作业取消链路</span>
+    </label>
+    <p>跟 <code>jobs.start</code> → <code>run</code> → <code>cancel</code> / <code>kill</code> 的路径，在关键点加日志，跑一次 UI 取消。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li><code>src/index.ts:989-1172</code> 是作业登记与 <code>run</code> 回调；<code>src/remote.ts:163-172</code> 的 <code>cancel</code> 调 <code>cancelFromUi</code>。</li>
+        <li>日志要证明 abort 到了子进程：live shell 的 <code>killAll</code>，或 SDK 的 <code>abortController</code>。</li>
+        <li>官方推荐取消走 <code>ctx.jobs.kill</code>；先对比本项目自己的 AbortController，再判断差异。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/index.ts:989-1172</code> · <code>src/remote.ts:163-172</code> · <code>src/tracker.ts:1-12</code> · 09 票 D3</div>
+    <div class="accept">验收：日志能串起「UI → RPC → AbortController → 子进程 / claude」；能解释前台作业没有 DSH jobId 时的差异；作业最终 settle 为 killed。</div>
+  </div>
+</div>
+
+<div class="block">
+  <h4>自测</h4>
+
+  <div class="quiz">
+    <div><strong>Q1.</strong> 一次委派从工具调用到面板，经过哪些模块？</div>
+    <details><summary>参考答案</summary><div><code>execute</code> → <code>sessions.plan</code> → 前台 / <code>jobs.start</code> → <code>runWithSession</code> → <code>runClaude</code> → <code>query</code>（SDK）→ <code>onDelta</code> / <code>onEvent</code> → <code>JobTracker</code> 的文本环 / 事件环 → <code>ClaudeCodeRemote</code> 的 <code>@Remote</code> → <code>client/api.ts</code> → <code>ClaudeCodeView</code> / <code>EventView</code> / <code>OutputView</code>。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q2.</strong> 注册表级 <code>stateOf</code> 为什么被弃用？替代入口是什么？</div>
+    <details><summary>参考答案</summary><div>它在没有插件注册该 key 时返回 <code>undefined</code>，分不清「没注册」和「没有值」；官方把读取交给投影的所属服务。普通读取用 <code>agent.model.current()</code>，所有者内部用 awaited <code>handle.stateOf(session)</code>。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q3.</strong> <code>ctx.jobs.read</code> 和 <code>ctx.jobs.readAt</code> 有什么区别？面板该用哪个？</div>
+    <details><summary>参考答案</summary><div><code>read</code> 是模型消费式读取，会推进模型游标；<code>readAt</code> 从绝对偏移读，不动模型游标，任意多个观察者可以各读各的。面板应该用 <code>readAt</code>，或者像本项目一样用等价的绝对偏移环。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q4.</strong> 本项目为什么不用 <code>ctx.jobs.kill</code>？这个理由现在还成立吗？</div>
+    <details><summary>参考答案</summary><div><code>tracker.ts:1-12</code> 说 kill 会把作业标记为已上报，模型收不到完成通知。当前官方文档相反：<code>packages/api/job-controller</code> 的 <code>kill</code> 明确写「owner agent still receives the completion notice」。这个理由已经过期。现行代码保留自建取消路径，主要是历史实现和面板自己的取消文案；照官方做时，用 <code>ctx.jobs.kill(id, caller, reason)</code>。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q5.</strong> <code>@Remote</code> 的方法参数名为什么不能随便改？</div>
+    <details><summary>参考答案</summary><div>SRC 模式从方法参数名生成 wire 字段。改参数名等于改协议，旧客户端会传错字段或读空。要么把参数名当公开契约冻结，要么改用生成的 Typert 契约。</div></details>
+  </div>
+</div>
+
+<div class="block">
+  <h4>官方推荐 vs 本项目做法</h4>
+
+  <div class="ex" id="bp-4-stateof">
+    <p><strong>官方推荐：</strong>不要用注册表级 <code>sessionProjections.stateOf(session, key)</code>。普通读取用 <code>agent.model.current()</code>，所有者内部用 awaited <code>handle.stateOf(session)</code>；投影的读取归所属服务。出处：<code>upgrade-guide/v0.2.1-rc.2</code>、<code>upgrade-guide/v0.2.1-alpha.4</code>。</p>
+    <p><strong>本项目做法：</strong><code>currentMainSelection</code>（<code>src/index.ts:194-215</code>）用 <code>ctx.get('sessionProjections')</code> 拿到投影服务，再调 <code>projections.stateOf(a.session, 'modelSelection')</code>，取 <code>pending ?? lastUsed</code>；拿不到就退回 <code>agent.options.model</code>。</p>
+    <p><strong>差异：</strong>项目用的是已弃用的同步投影读取。它依赖服务注册时机，拿不到时只能退到创建时的模型值，运行中切换的 effort 也会丢。</p>
+    <p><strong>原因：</strong>代码来自 0.2 早期，当时这是公开入口；<code>ctx.get</code> 懒读取是为了绕开 cordis 4.x 没有 optional-inject 的问题（写进 <code>inject</code> 会阻塞 fiber），同步调用又不用改调用点为 async。</p>
+    <p><strong>你该怎么做：</strong>新插件直接 <code>exec.agent.model.current()</code>。改本项目时先确认 agent 对象形状，再替换并跑一次真实委派；不要把 <code>ctx.get('sessionProjections')</code> 当通用模式复制。</p>
+  </div>
+
+  <div class="ex" id="bp-4-jobs">
+    <p><strong>官方推荐：</strong>后台作业通过 <code>ctx.jobs.start({ kind, label, owner, run })</code> 生产；模型用消费式 <code>read</code>，观察者用非消费的 <code>readAt</code>；取消用 <code>kill(id, caller, reason)</code>，reason 会并入终态 detail；浏览器通过 <code>job.list</code> / <code>job.follow</code> Remote 流拿名册和输出。出处：<code>subsystems/jobs</code>、<code>cookbook/adding-a-tool</code>。</p>
+    <p><strong>本项目做法：</strong><code>jobs.start</code> 只负责登记作业和给模型 <code>handle.append</code> 推送（<code>src/index.ts:989-1010</code>）；另建 <code>JobTracker</code>，维护 500 KB 文本环和 2 MB 结构化事件环；<code>remote.ts</code> 暴露 <code>claudeCode/readOutput</code>、<code>readEvents</code>、<code>cancel</code>；取消走自己的 <code>AbortController</code>，让作业正常 settle 成 killed。</p>
+    <p><strong>差异：</strong>官方的 <code>readAt</code> 已经支持绝对偏移和多观察者，文本环这一层是重复实现。官方环只保留文本 chunk（stdout / stderr / log），没有面板需要的 <code>tool_use</code> / <code>tool_result</code> / <code>thinking</code> 结构化事件；本项目的第二个环是为这个补的。项目注释里「kill 吞通知」的理由与当前文档相反：job-controller 的 kill 明确说 owner agent 仍会收到完成通知。</p>
+    <p><strong>原因：</strong>fork 时的 jobs seam 还没有 <code>readAt</code> 和 job-controller 流；面板要的不只是文本，还有能直接渲染的块结构；官方结算后的保留量（默认 16 KB）比面板想回放的少。第一条是历史，后两条是产品需求。</p>
+    <p><strong>你该怎么做：</strong>文本和名册优先用 <code>ctx.jobs.readAt</code> / <code>job.list</code> / <code>job.follow</code>；取消用 <code>ctx.jobs.kill(id, caller, reason)</code>。只有官方环不携带的数据（结构化事件、自己的工作流登记）才自建缓冲。不要复制 <code>tracker.ts</code> 头部那段已经过期的 kill 理由。</p>
+  </div>
+
+  <div class="ex" id="bp-4-rpc">
+    <p><strong>官方推荐：</strong>Host 业务服务用 Typert Remote decorator 标记方法，Host 侧生成严格的 descriptor、runtime codec 和类型声明；Client 侧从生成的 service face 调 <code>ctx.remote.&lt;namespace&gt;</code>，不要直接依赖 gateway 实现。后台作业已经有 <code>job.list</code> / <code>job.follow</code> Remote 流。出处：<code>subsystems/web-client</code>、<code>subsystems/jobs</code>。</p>
+    <p><strong>本项目做法：</strong><code>ClaudeCodeRemote</code> 走 SRC 运行时反射，不做 Typert codegen（<code>src/remote.ts:1-14</code>）；客户端 <code>api.ts</code> 直接 <code>connection.rpc.call('/api', 'claudeCode/&lt;method&gt;', { args })</code>（<code>:162-173</code>），并在 <code>toEvent</code> 里逐字段重新校验（<code>:49-110</code>）。</p>
+    <p><strong>差异：</strong>没有生成契约。方法参数名（<code>sessionId</code> / <code>jobId</code> / <code>fromOffset</code>）直接变成公开 wire 字段；客户端类型是手写镜像；宿主新增字段时旧 bundle 会静默丢掉未知事件。标准作业数据还重复实现了官方 job-controller 已经提供的一部分。</p>
+    <p><strong>原因：</strong>SRC 模式不需要 codegen，构建链更短，fork 时项目已经这么写；插件还有官方 jobs 不覆盖的数据（结构化事件、工作流登记），需要自己的 RPC。代价是两端靠人同步字段。</p>
+    <p><strong>你该怎么做：</strong>标准作业数据用官方 <code>job.list</code> / <code>job.follow</code>。自定义数据优先走生成的 Typert 契约；只能用 SRC 时，把参数名当公开 API 冻结，客户端对每个响应做运行时校验，并给未知事件留 default 分支（<code>api.ts</code> 已经这么做）。</p>
+  </div>
+
+  <div class="ex" id="bp-4-subagents">
+    <p><strong>官方推荐：</strong>DSH 的子代理是 <code>ctx.subagents</code> 服务与 <code>subagent</code> 工具；配置字段应该用 DSH 的名字和语义。出处：<code>subsystems/subagent</code>。</p>
+    <p><strong>本项目做法：</strong><code>Config.subagents</code> 是 <code>Record&lt;string, SubagentConfig&gt;</code>（<code>src/index.ts:57-66, 95, 171-180</code>），字段是 Anthropic Agent SDK 的 <code>AgentDefinition</code>（<code>description</code> / <code>prompt</code> / <code>tools</code> / <code>model</code> / <code>maxTurns</code> / <code>background</code>），最后通过 <code>Options.agents</code> 传给 Claude Code（<code>buildQueryOptions</code> 里的 <code>options.agents = req.agents</code>）。</p>
+    <p><strong>差异：</strong>同名不同物。这个 <code>subagents</code> 是「Claude Code 进程里的子代理定义」，不是「DSH 会话里的子代理」。把两者混在一起，会以为配置了它就能用 DSH 的 subagent 生命周期、作业和会话隔离。</p>
+    <p><strong>原因：</strong>委派目标就是 Claude Code，子代理配置要透传给 SDK；作者沿用了 SDK 的字段名，没有在插件层改名。</p>
+    <p><strong>你该怎么做：</strong>看到 <code>subagents</code> 先看上下文。写 DSH 插件时，DSH 的子代理用 <code>ctx.subagents</code>；这个字段只在「透传给 Claude Code」时使用。文档里把两者分开写。</p>
+  </div>
+</div>
+
+<div class="block">
+  <h4>本节「不要照抄」</h4>
+  <ul>
+    <li>不要用 <code>sessionProjections.stateOf</code>。新代码用 <code>agent.model.current()</code>。</li>
+    <li>不要为了给面板读输出就复制一整套 <code>JobTracker</code> 文本环；官方 <code>readAt</code> 已经支持多读者和绝对偏移。</li>
+    <li>不要把 <code>tracker.ts:1-12</code> 的「kill 吞通知」当官方语义；当前 job-controller 的 kill 仍会通知 owner agent。</li>
+    <li>不要把 <code>@Remote</code> 的方法参数名当内部实现。它是 wire 契约，改名就是破坏兼容。</li>
+    <li>不要把客户端的类型手写一份还不校验。至少像 <code>api.ts</code> 那样逐字段收窄，并给未知事件留 default。</li>
+    <li>不要把 <code>config.subagents</code> 当成 DSH 的 <code>ctx.subagents</code>。同名不同物。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>完成标志</h4>
+  <p>你能画出「工具调用 → SDK → 事件 → tracker → remote → 面板」的完整链路，指出两条流（模型文本 / 面板事件）在哪里分开；能加一种事件并让它贯通类型、tracker、wire 校验和渲染；能说清 <code>stateOf</code>、<code>readAt</code>、<code>kill</code> 三处官方入口现在是什么。</p>
+</div>
+
+<!-- ===== stage 5 ===== -->
+
+<div class="block">
+  <h4>覆盖内容</h4>
+  <div>
+    <span class="chip" style="margin:0 6px 6px 0">client/types.ts</span>
+    <span class="chip" style="margin:0 6px 6px 0">api.ts 手写 RPC 校验</span>
+    <span class="chip" style="margin:0 6px 6px 0">OutputView.tsx</span>
+    <span class="chip" style="margin:0 6px 6px 0">EventView.tsx</span>
+    <span class="chip" style="margin:0 6px 6px 0">ClaudeCodeView.tsx</span>
+    <span class="chip" style="margin:0 6px 6px 0">client/index.ts</span>
+    <span class="chip" style="margin:0 6px 6px 0">conversation.view slot</span>
+    <span class="chip" style="margin:0 6px 6px 0">三路 job 源</span>
+    <span class="chip" style="margin:0 6px 6px 0">1 秒轮询</span>
+    <span class="chip" style="margin:0 6px 6px 0">styles.ts / md.ts（选读）</span>
+  </div>
+</div>
+
+<div class="block">
+  <h4>阅读材料</h4>
+  <ul>
+    <li><code>subsystems/client-modules</code>：bundle、manifest、<code>window.__DSH_BOOT__</code> 的加载路径。</li>
+    <li><code>subsystems/slots</code>：<code>slots.inject</code> / <code>slots.register</code> 的所有权与生命周期。</li>
+    <li><code>subsystems/conversation</code>、<code>subsystems/web-client</code>：会话视图、Remote 通信与生成的 client service face。</li>
+    <li>源码顺序：<code>src/client/types.ts</code> → <code>api.ts</code> → <code>OutputView.tsx</code> → <code>EventView.tsx</code> → <code>ClaudeCodeView.tsx</code> → <code>index.ts</code>。</li>
+    <li><code>src/client/styles.ts</code>、<code>md.ts</code>：选读。样式是纯 CSS 字符串，Markdown 渲染是展示细节。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>关键代码</h4>
+  <p>客户端入口只做三件事：装样式、取可选的 <code>jobs</code> 服务、把视图注册进 <code>conversation.view</code>。<code>slots.inject</code> 是必需的：bundle 可能早于 ui-conversation 声明该 slot 加载，裸 <code>register</code> 会抛错；<code>inject</code> 的回调在 owner 每次挂载时重新运行，owner 折叠时注册随之移除。</p>
+  <div class="code">
+    <div class="code-head"><span class="fname">src/client/index.ts:25-40</span></div>
+    <pre><code><span class="ln"><i>25</i>export function apply(ctx: Context): void {</span>
+<span class="ln"><i>26</i>  installStyles()</span>
+<span class="ln"><i>27</i>  // 0.2 moved the background-jobs roster into a first-class client service</span>
+<span class="ln"><i>28</i>  // (`ctx.jobs`, installed by ui-jobs) and dropped the session store's</span>
+<span class="ln"><i>29</i>  // `jobsBySession` mirror; the panel reads the service when it is there and</span>
+<span class="ln"><i>30</i>  // falls back to the mirror otherwise. Looked up rather than injected so the</span>
+<span class="ln"><i>31</i>  // bundle still loads on a 0.1.x client that has no such service.</span>
+<span class="ln"><i>32</i>  const jobs = ctx.get?.&lt;JobsClient&gt;('jobs')</span>
+<span class="ln"><i>33</i>  const ClaudeCodeView = createClaudeCodeView(createApi(ctx.connection), jobs)</span>
+<span class="ln"><i>34</i>  ctx.slots.inject('conversation.view', () => ctx.slots.register({</span>
+<span class="ln"><i>35</i>    name: 'conversation.view',</span>
+<span class="ln"><i>36</i>    id: 'claude-code',</span>
+<span class="ln"><i>37</i>    order: 100,</span>
+<span class="ln"><i>38</i>    label: () => t('view.label'),</span>
+<span class="ln"><i>39</i>  }, ClaudeCodeView))</span>
+<span class="ln"><i>40</i>}</span></code></pre>
+  </div>
+  <p><code>ctx.get('jobs')</code> 是软查找：0.1.x 客户端没有这个服务时返回 <code>undefined</code>，面板走回退路径。<code>connection</code> 通过 <code>inject</code> 声明，是硬依赖。</p>
+  <p>视图层把三路 job 源合并成一个数组，再去重、排序、分组。一个 Claude 会话一个 tab，不是一次调用一个 tab。</p>
+  <div class="code">
+    <div class="code-head"><span class="fname">src/client/ClaudeCodeView.tsx:231-242</span></div>
+    <pre><code><span class="ln"><i>231</i>    const native = (jobs?.state ?? NO_ROSTER)((state) =&gt; state.rows[sessionId])</span>
+<span class="ln"><i>232</i>    const mirrored = useSessions((state) =&gt; state.jobsBySession?.[sessionId]) ?? NO_JOBS</span>
+<span class="ln"><i>233</i>    const panel = panelOf(sessionId)</span>
+<span class="ln"><i>234</i>    const [tracked, setTracked] = useState&lt;readonly JobView[]&gt;(() =&gt; panel.rows ?? NO_JOBS)</span>
+<span class="ln"><i>235</i>    // Merged, not either/or: the plugin's own tracker list is the one source</span>
+<span class="ln"><i>236</i>    // that cannot lag a job's start, so a running delegation is listed — and its</span>
+<span class="ln"><i>237</i>    // live reads begin — within one poll even when the harness roster is empty</span>
+<span class="ln"><i>238</i>    // or late.</span>
+<span class="ln"><i>239</i>    const rows = useMemo(</span>
+<span class="ln"><i>240</i>      () =&gt; ordered(mergeRows(native ?? NO_JOBS, mirrored, tracked).filter((job) =&gt; PANEL_KINDS.includes(job.kind))),</span>
+<span class="ln"><i>241</i>      [native, mirrored, tracked],</span>
+<span class="ln"><i>242</i>    )</span></code></pre>
+  </div>
+  <p>三路分别是：0.2 的 <code>ctx.jobs</code> 名册（<code>jobs.state</code>）、0.1.x 的 <code>useSessions</code> 镜像（<code>jobsBySession</code>）、插件自己的 <code>listJobs</code> 轮询结果（<code>tracked</code>）。<code>mergeRows</code> 按 id 去重，先到的那份留下；<code>ordered</code> 把 live 行排在前面、已结算行按时间排；<code>groupsOf</code> 再按 <code>claudeSessionId</code> 分组，组内按开始时间排。</p>
+  <p>轮询分两档：roster 2 秒（<code>TRACKED_POLL_MS</code>，<code>:48</code>），选中任务的 live 输出 1 秒（<code>POLL_MS</code>，<code>:81</code>）。live 轮询只在面板挂载且选中会话还有 running 作业时开；状态变成终态会再读一次，然后停表。effect 的 cleanup 同时 abort 读取和 <code>clearInterval</code>（<code>:381-441</code>）。</p>
+  <p>harness 会卸载非活动视图，组件 state 会丢；所以面板把选中任务、已读偏移、输出缓存放在模块级 <code>panelOf(sessionId)</code> 里（<code>:17-20, :83-84</code>）。这是本项目面对的视图生命周期，不是所有客户端插件的通用做法。</p>
+</div>
+
+<div class="block">
+  <h4>练习</h4>
+  <p class="placeholder-note">练习前：<code>git switch -c practice/stage-5</code>；练完切回 <code>main</code>。这组练习只在完整路径必做。</p>
+
+  <div class="ex" data-ex="5.1">
+    <label class="ex-head">
+      <input type="checkbox" data-check="5.1">
+      <span class="t"><span class="ex-id">5.1</span>给任务列表加状态筛选</span>
+    </label>
+    <p>在 <code>ClaudeCodeView</code> 加一个状态筛选控件（例如只看 running / failed），用 <code>useMemo</code> 过滤三路合并后的数组。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li>三路合并结果是 <code>rows</code>（<code>ClaudeCodeView.tsx:239-242</code>），在它后面加过滤，不要改数据源。</li>
+        <li>依赖数组要包含筛选状态和 <code>rows</code>；漏掉一个，切换筛选不更新。</li>
+        <li>只改渲染。不要动 <code>panel</code> 缓存、roster 轮询和 live 轮询。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/client/ClaudeCodeView.tsx:226-291</code> · <code>src/client/types.ts:11</code></div>
+    <div class="accept">验收：筛选可切换；选中任务被过滤掉时回退到默认项；1 秒 live 轮询不受影响。</div>
+  </div>
+
+  <div class="ex" data-ex="5.2">
+    <label class="ex-head">
+      <input type="checkbox" data-check="5.2">
+      <span class="t"><span class="ex-id">5.2</span>把 installStyles() 包进 ctx.effect</span>
+    </label>
+    <p>给 <code>styles.ts</code> 加 <code>removeStyles()</code>，在 <code>client/index.ts</code> 用 <code>ctx.effect</code> 注册清理。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li><code>ctx.effect</code> 的 cleanup 在卸载 / HMR 时执行；<code>installStyles</code> 是 Cordis 未管理的 DOM 资源。</li>
+        <li>当前 <code>installStyles</code> 用 <code>#STYLE_ID</code> 去重，remove 时按同一个 id 删。</li>
+        <li>保留 <code>typeof document === 'undefined'</code> 的 guard；非浏览器环境不能碰 DOM。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/client/styles.ts:882-891</code> · <code>src/client/index.ts:25-26</code> · 09 票 D11</div>
+    <div class="accept">验收：卸载后 <code>&lt;style&gt;</code> 被移除；HMR 重载不重复注入；面板样式在挂载期间正常。</div>
+  </div>
+
+  <div class="ex" data-ex="5.3">
+    <label class="ex-head">
+      <input type="checkbox" data-check="5.3">
+      <span class="t"><span class="ex-id">5.3</span>加一个 StatusBadge 组件</span>
+    </label>
+    <p>写一个轻量 <code>StatusBadge</code>，显示当前选中任务的状态；从现有 props 或 <code>api</code> 取数，接入 <code>ClaudeCodeView</code> 的 tab strip 或详情区。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li><code>client/types.ts:11</code> 的 <code>JobStatus</code> 是唯一状态源；文案走 <code>format.ts</code> 的 <code>statusLabel</code>。</li>
+        <li>先只读 <code>currentJob.status</code>，不要为徽标新开 RPC。</li>
+        <li>样式类加进 <code>styles.ts</code> 的 CSS 字符串，类名用 <code>ccp-</code> 前缀。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/client/types.ts:11</code> · <code>src/client/ClaudeCodeView.tsx:331-337</code> · <code>src/client/styles.ts</code></div>
+    <div class="accept">验收：徽标随选中任务更新；状态文案走 <code>statusLabel</code>；切换视图和卸载时无报错。</div>
+  </div>
+</div>
+
+<div class="block">
+  <h4>自测</h4>
+
+  <div class="quiz">
+    <div><strong>Q1.</strong> 面板的三路 job 源分别是什么？为什么要合并？</div>
+    <details><summary>参考答案</summary><div>0.2 的 <code>ctx.jobs</code> 名册（<code>jobs.state</code>）、0.1.x 的 <code>useSessions</code> 镜像（<code>jobsBySession</code>）、插件自己的 <code>listJobs</code> 轮询结果（<code>tracked</code>）。合并是为了同时兼容 0.1.x 和 0.2，并且自己的 tracker 不会漏掉刚启动的作业。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q2.</strong> 1 秒轮询什么时候开？什么时候关？</div>
+    <details><summary>参考答案</summary><div>只在面板挂载、选中会话还有 running 作业时开；作业进入终态后触发一次最终读取，然后不再开定时器。effect 的 cleanup 会 abort 读取并 <code>clearInterval</code>。<code>ClaudeCodeView.tsx:381-441</code>。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q3.</strong> 当前 <code>installStyles()</code> 的问题是什么？怎么修？</div>
+    <details><summary>参考答案</summary><div>它只注入 <code>&lt;style&gt;</code>，没有 remove；卸载或 HMR 后标签留在 <code>&lt;head&gt;</code>，HMR 时旧内容也不会更新。加 <code>removeStyles()</code>，用 <code>ctx.effect(() =&gt; { installStyles(); return removeStyles })</code> 注册清理。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q4.</strong> 为什么 <code>slots.register</code> 要包在 <code>slots.inject</code> 里？</div>
+    <details><summary>参考答案</summary><div>bundle 可能早于 ui-conversation 声明 <code>conversation.view</code> 加载，裸 <code>register</code> 会抛错。<code>inject</code> 等 owner 声明后运行回调，owner 折叠时注册随 effect 移除，重新挂载时再运行。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q5.</strong> 面板状态为什么放在模块级缓存，而不是组件 state？</div>
+    <details><summary>参考答案</summary><div>harness 会卸载非活动视图，组件 state 在切 tab 时丢失；模块级 <code>panelOf(sessionId)</code> 保留选中任务、已读偏移和输出缓存，切回来能接着读。这是本项目的视图生命周期约束，不是通用模式。</div></details>
+  </div>
+</div>
+
+<div class="block">
+  <h4>官方推荐 vs 本项目做法</h4>
+
+  <div class="ex" id="bp-5-styles">
+    <p><strong>官方推荐：</strong>Cordis 未管理的资源（定时器、连接、watcher、DOM 副作用）包在 <code>ctx.effect()</code> 里，并返回 disposer；卸载和 HMR 时都会执行。出处：<code>cordis-tutorial/02-lifecycle-and-effects</code>。</p>
+    <p><strong>本项目做法：</strong><code>client/index.ts:26</code> 直接调 <code>installStyles()</code>；<code>styles.ts:882-891</code> 只检查 <code>#STYLE_ID</code> 是否已存在，然后 append，没有 remove 函数。</p>
+    <p><strong>差异：</strong>卸载后 <code>&lt;style&gt;</code> 留在 <code>&lt;head&gt;</code>；HMR 时靠 id 去重，旧标签挡住新内容，样式更新不会生效。</p>
+    <p><strong>原因：</strong>一次性注入实现最简单；开发时全页刷新居多，HMR 的样式残留不容易暴露。</p>
+    <p><strong>你该怎么做：</strong>照练习 5.2 加 <code>removeStyles()</code>，用 <code>ctx.effect</code> 返回 cleanup。不要复制「只 install 不 cleanup」的写法；在卸载时释放自己申请的资源。</p>
+  </div>
+
+  <div class="ex" id="bp-5-jobsources">
+    <p><strong>官方推荐：</strong>客户端的作业数据走生成的 Remote 流（<code>job.list</code> / <code>job.follow</code>）和 client model：model 维护稳定快照，UI 订阅，不在组件里复制 transport state，也不轮询。出处：<code>subsystems/jobs</code>、<code>subsystems/web-client</code>。</p>
+    <p><strong>本项目做法：</strong><code>ClaudeCodeView</code> 合并三路源：<code>jobs.state</code>、<code>useSessions.jobsBySession</code>、自己的 <code>listJobs</code> 轮询（2 秒）；选中任务 live 时再 1 秒轮询 <code>readEvents</code> / <code>readOutput</code>（<code>:231-242, :279, :381-441</code>）。</p>
+    <p><strong>差异：</strong>官方一套推送源加一个 client model；本项目三套源去重，加两档轮询，transport state 直接进组件。兼容路径多了，代码也就多了。</p>
+    <p><strong>原因：</strong>要同时兼容 0.1.x（镜像）和 0.2（jobs 服务）；自己的 tracker 是唯一不会漏掉刚启动作业的源；官方 job 流没有结构化事件，live 文本也没有对应的 Client→Host 推送，只能轮询。harness 卸载视图又逼着把状态搬到模块级缓存。</p>
+    <p><strong>你该怎么做：</strong>只面向一个 DSH 版本时，用生成的 jobs client model 和 <code>job.follow</code>，不要抄三路合并。必须轮询时，照这里的生命周期：只在挂载且任务运行时开表，cleanup 清掉，状态不要只放组件 state，卸载时会丢。先确认官方有没有推送，再决定轮询。</p>
+  </div>
+
+  <div class="ex" id="bp-5-client-inject">
+    <p><strong>官方推荐：</strong><code>package.json</code> 的 <code>dsh.client.inject</code> 列出客户端 bundle 依赖的包行，清单应与实际运行时一致。出处：<code>subsystems/client-modules</code> 的 <code>WebBootEntry.inject</code>。</p>
+    <p><strong>本项目做法：</strong><code>package.json</code> 里仍列 <code>@deepseek-ai/dsh-client-runtime</code>；0.2.2-rc.5 已经没有这个包（09 票灰色地带）。硬依赖在 <code>src/client/index.ts:19</code> 的 <code>inject = ['slots', 'connection']</code>。</p>
+    <p><strong>差异：</strong>清单里有一个不存在的包。它当前不影响加载（09 票判断为信息性字段），但会让读者以为要装它，也会让版本升级时误判依赖。</p>
+    <p><strong>原因：</strong>从 0.1.x fork 时留下；0.2 拆包 / 改名后没同步。代码能跑，清单就一直没改。</p>
+    <p><strong>你该怎么做：</strong>以 <code>inject</code> 和实际 import 为准。自己插件只声明用到的包，发布前对照目标 DSH 版本的文件清单；不要照抄这串旧包名。</p>
+  </div>
+</div>
+
+<div class="block">
+  <h4>本节「不要照抄」</h4>
+  <ul>
+    <li>不要照抄 <code>installStyles()</code> 这种无 cleanup 的一次性副作用。</li>
+    <li>不要在没有 0.1.x 兼容需求时合并三路 job 源。</li>
+    <li>不要在官方有推送 / 流的地方自己开 1 秒轮询。先查 <code>job.follow</code>。</li>
+    <li>不要把 <code>dsh.client.inject</code> 里的旧包名当真实依赖清单。</li>
+    <li>不要把模块级面板缓存当通用模式；先确认你的视图会不会被 harness 卸载。</li>
+    <li>不要在客户端手写一份宿主类型却不校验；照 <code>api.ts</code> 的做法逐字段收窄。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>完成标志</h4>
+  <p>面板上出现一个由你添加的可见元素，并且它能读到宿主数据；你能说清三路 job 源各自解决什么问题、1 秒轮询的开关条件、<code>installStyles</code> 少了哪一步 cleanup；卸载后没有样式残留。</p>
+</div>

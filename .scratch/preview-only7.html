@@ -1,0 +1,2009 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-path="full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DSH 插件开发学习教程</title>
+<!--
+  01 票：骨架与交互。
+  - 只包含外壳、8 个阶段占位、24 个占位练习；正文由 02/03/04 票插入 stage-body。
+  - 单文件、零外部依赖。
+-->
+<script>
+/* 尽早应用主题与路径，避免首屏闪烁。主题优先级：localStorage > 系统偏好 > light。 */
+(function () {
+  var d = document.documentElement;
+  try {
+    var theme = localStorage.getItem("dsh-learn:theme");
+    if (theme !== "dark" && theme !== "light") {
+      theme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    d.dataset.theme = theme;
+    d.dataset.path = localStorage.getItem("dsh-learn:path") === "short" ? "short" : "full";
+  } catch (e) {
+    d.dataset.theme = "light";
+    d.dataset.path = "full";
+  }
+})();
+</script>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#fbfaf7; --fg:#1f2328; --muted:#6b7280; --line:#e5e2da; --card:#fff;
+  --accent:#2f6f4e; --accent-fg:#fff; --code-bg:#f4f2ec; --warn:#b45309;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 6px 18px rgba(0,0,0,.06);
+  --radius:10px;
+}
+[data-theme=dark]{
+  color-scheme:dark;
+  --bg:#14171a; --fg:#e6e6e3; --muted:#9aa3ad; --line:#2a3037; --card:#1b1f23;
+  --accent:#6abf8b; --accent-fg:#0b1410; --code-bg:#101316; --warn:#f0a05a;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--fg);
+  font:15px/1.65 -apple-system,"Segoe UI","Noto Sans SC","Microsoft YaHei",sans-serif;
+}
+a{color:var(--accent)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+code,kbd,pre{font-family:"Cascadia Code",Consolas,"JetBrains Mono",monospace}
+h1,h2,h3,h4{line-height:1.3;margin:0 0 .5em}
+p{margin:0 0 .9em}
+ul{margin:.2em 0 .9em;padding-left:1.3em}
+li{margin:.15em 0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------- 顶部工具条 ---------- */
+.topbar{
+  position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:14px;
+  padding:10px 18px;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  border-bottom:1px solid var(--line);backdrop-filter:blur(8px);
+}
+.brand{font-weight:650;letter-spacing:.01em;line-height:1.25}
+.brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.spacer{flex:1}
+.seg{display:flex;flex:none;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--card)}
+.seg button{padding:4px 12px;font-size:13px;color:var(--muted);white-space:nowrap}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-fg)}
+.iconbtn{border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:13px;background:var(--card);white-space:nowrap}
+.iconbtn:hover{border-color:var(--accent)}
+.progress{display:flex;flex:none;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.progress .bar{width:140px;height:7px;border-radius:99px;background:var(--line);overflow:hidden}
+.progress .bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+
+/* ---------- 页面骨架 ---------- */
+.layout{
+  display:grid;grid-template-columns:210px minmax(0,1fr);gap:30px;
+  max-width:1320px;margin:0 auto;padding:26px 24px 90px;
+}
+.toc{position:sticky;top:70px;align-self:start;font-size:13.5px}
+.toc .toc-h{font-size:11px;letter-spacing:.12em;color:var(--muted);margin:0 0 8px}
+.toc a{
+  display:flex;justify-content:space-between;gap:8px;padding:5px 8px;
+  border-radius:7px;color:var(--fg);text-decoration:none;line-height:1.35;
+}
+.toc a:hover{background:var(--card)}
+.toc a.done{color:var(--muted)}
+.toc a .p{flex:none;color:var(--muted);font-size:11.5px;white-space:nowrap}
+.hero h1{font-size:25px;margin-bottom:6px}
+.hero p{color:var(--muted);max-width:62ch}
+.hero .hero-note{font-size:13px;margin-top:-.2em}
+.book>section{padding:26px 0;border-top:1px solid var(--line);scroll-margin-top:76px}
+
+/* ---------- 阶段字段 ---------- */
+.chip{
+  display:inline-block;padding:1px 8px;border-radius:999px;
+  border:1px solid var(--line);font-size:12px;color:var(--muted);white-space:nowrap;
+}
+.chip.hot{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.stage-title{display:flex;align-items:baseline;gap:10px;margin:0 0 6px;font-size:22px}
+.stage-title .n{flex:none;font-size:12px;letter-spacing:.12em;color:var(--muted);font-weight:600}
+.goal{color:var(--muted);margin:0 0 14px;max-width:70ch}
+
+/* 正文插入点：stage-body 为空时显示提示，内容插入后自动消失 */
+.stage-body:empty::before{
+  content:"正文插入点 · " attr(data-insert);
+  display:block;margin:4px 0 16px;padding:12px 14px;
+  border:1px dashed var(--line);border-radius:var(--radius);
+  color:var(--muted);font-size:13px;
+  background:color-mix(in srgb,var(--card) 55%,transparent);
+}
+
+/* ---------- 占位练习 ---------- */
+.ex-group{margin:18px 0 0}
+.ex-group-head{display:flex;align-items:center;gap:8px;margin:0 0 8px}
+.ex-group-head h3{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.ex{
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--card);
+  padding:10px 14px;margin:8px 0;
+}
+.ex-head{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+.ex-head input{margin-top:4px;accent-color:var(--accent);flex:none}
+.ex-head .t{font-weight:600}
+.ex-id{color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums;margin-right:4px}
+.placeholder-note{font-size:12.5px;color:var(--muted);margin:8px 0 0}
+
+/* ---------- 最短路径折叠 ---------- */
+.path-notice{
+  display:none;align-items:center;flex-wrap:wrap;gap:10px;
+  margin:4px 0 0;padding:10px 14px;font-size:13px;color:var(--muted);
+  border:1px dashed var(--line);border-radius:var(--radius);
+}
+html[data-path="short"] .book>section[data-path="full"]:not([data-expanded]) .path-notice{display:flex}
+html[data-path="short"] .book>section[data-path="full"]:not([data-expanded]) .stage-body,
+html[data-path="short"] .book>section[data-path="full"]:not([data-expanded]) .ex-group{display:none}
+
+/* ---------- 打印 ---------- */
+@media print{
+  .topbar,.toc,.seg,.path-notice,.stage-body:empty::before,.placeholder-note{display:none!important}
+  .layout{display:block;max-width:none;padding:0}
+  .book>section{padding:18px 0;border-top:1px solid #ccc}
+  body{background:#fff;color:#000;font-size:11pt}
+  a{color:#000;text-decoration:none}
+  html[data-path="short"] .book>section[data-path="full"] .stage-body,
+  html[data-path="short"] .book>section[data-path="full"] .ex-group{display:block!important}
+  .ex{background:#fff;break-inside:avoid}
+  .code{break-inside:avoid}
+}
+
+/* ---------- 窄屏 ---------- */
+@media (max-width:920px){
+  .layout{grid-template-columns:1fr;gap:14px;padding:18px 16px 70px}
+  .toc{
+    position:static;display:flex;gap:6px;overflow-x:auto;
+    padding:0 0 10px;border-bottom:1px solid var(--line);font-size:13px;
+  }
+  .toc .toc-h{display:none}
+  .toc a{
+    display:inline-flex;flex:none;white-space:nowrap;
+    border:1px solid var(--line);background:var(--card);padding:5px 10px;
+  }
+  .toc a .p{display:none}
+  .stage-title{font-size:20px}
+}
+@media (max-width:620px){
+  .topbar{flex-wrap:wrap;gap:8px;padding:8px 12px}
+  .topbar .spacer{display:none}
+  .progress{order:10;width:100%}
+  .progress .bar{flex:1;width:auto}
+  .book>section{scroll-margin-top:96px}
+}
+
+/* ===== 正文内容块（合并自 prototype） ===== */
+.block{margin:18px 0}
+.block h4{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.block > p{margin:0 0 .9em}
+.block ul{margin:.2em 0 .9em;padding-left:1.3em}
+.block li{margin:.15em 0}
+.block code{background:var(--code-bg);padding:1px 5px;border-radius:5px;font-size:.92em}
+
+/* 代码块 */
+.code{background:var(--code-bg);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin:10px 0}
+.code-head{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+.code-head .fname{font-family:"Cascadia Code",Consolas,"JetBrains Mono",monospace}
+.code-head .spacer{flex:1}
+.code-head button{font-size:12px;color:var(--muted);border:1px solid transparent;border-radius:6px;padding:2px 7px;cursor:pointer;background:none;font:inherit}
+.code-head button:hover{border-color:var(--line);color:var(--fg)}
+.code pre{margin:0;padding:10px 0;overflow:auto;font-size:12.5px;line-height:1.55;font-family:"Cascadia Code",Consolas,"JetBrains Mono",monospace}
+.code .ln{display:block;white-space:pre}
+.code .ln i{display:inline-block;width:3.2em;text-align:right;padding-right:1em;color:color-mix(in srgb,var(--muted) 70%,transparent);font-style:normal;user-select:none}
+
+/* 练习卡内的提示 / 参考 / 验收 */
+.ex details{margin:8px 0 0 26px}
+.ex summary{cursor:pointer;color:var(--accent);font-size:13px}
+.ex .refs{font-size:12.5px;color:var(--muted);margin:6px 0 0 26px}
+.ex .refs code{background:var(--code-bg);padding:1px 5px;border-radius:5px}
+.ex .accept{margin:8px 0 0 26px;font-size:13px;color:var(--muted)}
+
+/* 自测 */
+.quiz{border-left:3px solid var(--accent);padding:2px 0 2px 14px;margin:12px 0}
+.quiz details{margin-top:4px}
+.quiz summary{cursor:pointer;font-size:13px;color:var(--accent)}
+
+/* 毕业项目卡 */
+.capstone-card{border:1px solid var(--line);border-radius:var(--radius);background:var(--card);padding:14px 16px;margin:12px 0;transition:border-color .2s,opacity .2s}
+.capstone-card h4{font-size:15px;letter-spacing:0;text-transform:none;color:var(--fg);margin:0 0 8px}
+.cap-body{margin-top:6px}
+section:not(#stage-7){display:none!important}</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">DSH 插件开发学习教程<small>8 个阶段 · 单文件离线教程</small></div>
+  <div class="spacer"></div>
+  <div class="seg" role="group" aria-label="学习路径">
+    <button type="button" data-path-choice="short" aria-pressed="false">最短路径</button>
+    <button type="button" data-path-choice="full" aria-pressed="true">完整路径</button>
+  </div>
+  <div class="progress" aria-label="总进度">
+    <span data-progress-text>0/24</span>
+    <span class="bar" aria-hidden="true"><i data-progress-bar style="width:0%"></i></span>
+    <span data-progress-pct>0%</span>
+  </div>
+  <button type="button" class="iconbtn" data-theme-toggle>深色</button>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="阶段目录">
+    <p class="toc-h">目录</p>
+    <a href="#stage-0"><span>0. 环境与最小插件</span><span class="p">2–3h</span></a>
+    <a href="#stage-1"><span>1. TS + ESM/Node 够用集</span><span class="p">8–10h</span></a>
+    <a href="#stage-2"><span>2. Cordis 与插件骨架</span><span class="p">6–8h</span></a>
+    <a href="#stage-3"><span>3. 工具与技能</span><span class="p">6–8h</span></a>
+    <a href="#stage-4"><span>4. 宿主业务载荷</span><span class="p">12–14h</span></a>
+    <a href="#stage-5"><span>5. 客户端 React 与面板</span><span class="p">10–12h</span></a>
+    <a href="#stage-6"><span>6. 构建打包安装调试</span><span class="p">4–6h</span></a>
+    <a href="#stage-7"><span>7. 毕业项目</span><span class="p">12–16h</span></a>
+  </nav>
+
+  <main class="book">
+    <div class="hero">
+      <h1>从 dsh-claude-delegate 入手，学会开发 DSH 插件</h1>
+      <p>8 个阶段，从环境搭到毕业项目。读完能看懂这个仓库，也能独立写一个可安装的插件。</p>
+    </div>
+
+    <section id="stage-0" data-stage="0" data-path="both">
+      <div class="meta">
+        <span class="chip">阶段 0</span>
+        <span class="chip">2–3h</span>
+        <span class="chip">两条路径都走</span>
+        <span class="chip" data-stage-count>0 / 3 练习</span>
+      </div>
+      <h2 class="stage-title"><span class="n">STAGE 0</span> 环境与最小插件</h2>
+      <p class="goal">建立「插件是什么、装到哪、怎么被加载」的实物感。</p>
+      <!-- segments/stage-0-2.html 插入此处 -->
+      <div class="stage-body">
+<div class="block">
+  <h4>覆盖内容</h4>
+  <div>
+    <span class="chip">版本自检</span>
+    <span class="chip">最小工具插件 3 件文件</span>
+    <span class="chip">dsh plugin add</span>
+    <span class="chip">--dump-config</span>
+    <span class="chip">profile / bundle / patch</span>
+    <span class="chip">启动 profile 调用工具</span>
+  </div>
+</div>
+
+<div class="block">
+  <h4>阅读材料</h4>
+  <p>官方文档在本机的位置：<code>~/.dsh/profiles/node_modules/@deepseek-ai/dsh/docs/</code>。下面的路径都相对这个目录。</p>
+  <ul>
+    <li><code>cordis-tutorial/01-first-plugin.zh.md</code>：插件的三种形态。函数形态的入口是 <code>apply</code>，<code>name</code> 和 <code>inject</code> 是可选导出。</li>
+    <li><code>cookbook/extension-cookbook.zh.md</code>：插件能扩展哪些能力，注册入口分别是什么。</li>
+    <li><code>architecture.zh.md</code>：profile、bundle、patch 三层如何叠加。读 Profile 与组合包两节即可。</li>
+    <li>本仓 <code>README.md</code> 的「安装」与「开发与发布」：<code>dsh plugin add</code>、<code>cordis.patch.yml</code> 的实际写法。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>关键代码</h4>
+  <p>先把加载链路跑通，再补类型和构建。从版本自检到工具可调用，最小路径是：</p>
+
+  <div class="code">
+    <div class="code-head"><span class="fname">终端（08 票实测命令）</span><span class="spacer"></span><button type="button" data-copy="node -v &amp;&amp; npm -v &amp;&amp; pnpm -v &amp;&amp; dsh --version&#10;dsh plugin --profile smoke add E:/path/to/dsh-plugin-smoke&#10;dsh --profile smoke --dump-config | grep smoke&#10;dsh --profile smoke&#10;# 开发期不安装，直接挂源码：&#10;dsh --profile headless --patch ./patch-overlay.yml --dump-config&#10;dsh --profile headless --patch ./patch-overlay.yml">复制</button></div>
+    <pre><code><span class="ln"><i>1</i>node -v &amp;&amp; npm -v &amp;&amp; pnpm -v &amp;&amp; dsh --version</span><span class="ln"><i>2</i>dsh plugin --profile smoke add E:/path/to/dsh-plugin-smoke</span><span class="ln"><i>3</i>dsh --profile smoke --dump-config | grep smoke</span><span class="ln"><i>4</i>dsh --profile smoke</span><span class="ln"><i>5</i># 开发期不安装，直接挂源码：</span><span class="ln"><i>6</i>dsh --profile headless --patch ./patch-overlay.yml --dump-config</span><span class="ln"><i>7</i>dsh --profile headless --patch ./patch-overlay.yml</span></code></pre>
+  </div>
+
+  <p>最小可安装插件是 3 个文件：入口模块、<code>package.json</code>（声明 <code>dsh.bundle.patch</code>）、<code>cordis.patch.yml</code>（插入插件条目）。<code>package.json</code> 的最小形状：</p>
+
+  <div class="code">
+    <div class="code-head"><span class="fname">package.json</span><span class="spacer"></span><button type="button" data-copy="{&#10;  &quot;name&quot;: &quot;dsh-plugin-smoke&quot;,&#10;  &quot;version&quot;: &quot;0.1.0&quot;,&#10;  &quot;private&quot;: true,&#10;  &quot;type&quot;: &quot;module&quot;,&#10;  &quot;main&quot;: &quot;index.js&quot;,&#10;  &quot;dsh&quot;: {&#10;    &quot;bundle&quot;: {&#10;      &quot;patch&quot;: &quot;./cordis.patch.yml&quot;&#10;    }&#10;  }&#10;}">复制</button></div>
+    <pre><code><span class="ln"><i>1</i>{</span><span class="ln"><i>2</i>  "name": "dsh-plugin-smoke",</span><span class="ln"><i>3</i>  "version": "0.1.0",</span><span class="ln"><i>4</i>  "private": true,</span><span class="ln"><i>5</i>  "type": "module",</span><span class="ln"><i>6</i>  "main": "index.js",</span><span class="ln"><i>7</i>  "dsh": {</span><span class="ln"><i>8</i>    "bundle": {</span><span class="ln"><i>9</i>      "patch": "./cordis.patch.yml"</span><span class="ln"><i>10</i>    }</span><span class="ln"><i>11</i>  }</span><span class="ln"><i>12</i>}</span></code></pre>
+  </div>
+
+  <p>开发期可以不安装，用 overlay 直接指向源码。<code>file:///</code> 是三条斜杠，路径用正斜杠，<code>id</code> 必须是稳定字符串：</p>
+
+  <div class="code">
+    <div class="code-head"><span class="fname">patch-overlay.yml</span><span class="spacer"></span><button type="button" data-copy="- insert:&#10;    - id: dsh-plugin-smoke&#10;      name: file:///E:/path/to/dsh-plugin-smoke/index.js">复制</button></div>
+    <pre><code><span class="ln"><i>1</i>- insert:</span><span class="ln"><i>2</i>    - id: dsh-plugin-smoke</span><span class="ln"><i>3</i>      name: file:///E:/path/to/dsh-plugin-smoke/index.js</span></code></pre>
+  </div>
+
+  <p><code>index.js</code> 用原始 <code>ToolDefinition</code>，零依赖、零构建。这份代码在 08 票里实际加载、注册、执行过：</p>
+
+  <div class="code">
+    <div class="code-head"><span class="fname">index.js（08 票实测可加载的最小型）</span><span class="spacer"></span><button type="button" data-copy="export const name = 'dsh-plugin-smoke'&#10;export const inject = ['tools']&#10;&#10;export function apply(ctx) {&#10;  ctx.tools.register({&#10;    name: 'echo',&#10;    description: 'Echo the given text back, optionally with a prefix.',&#10;    parameters: {&#10;      type: 'object',&#10;      properties: { text: { type: 'string', description: 'Text to echo back.' } },&#10;      required: ['text'],&#10;      additionalProperties: false,&#10;    },&#10;    output: {&#10;      schema: {&#10;        type: 'object',&#10;        properties: { echoed: { type: 'string' } },&#10;        required: ['echoed'],&#10;        additionalProperties: false,&#10;      },&#10;      render: (_args, value) =&gt; [{ type: 'text', text: value.echoed }],&#10;    },&#10;    async execute(args) {&#10;      return { echoed: args.text }&#10;    },&#10;  })&#10;}">复制</button></div>
+    <pre><code><span class="ln"><i>1</i>export const name = 'dsh-plugin-smoke'</span><span class="ln"><i>2</i>export const inject = ['tools']</span><span class="ln"><i>3</i> </span><span class="ln"><i>4</i>export function apply(ctx) {</span><span class="ln"><i>5</i>  ctx.tools.register({</span><span class="ln"><i>6</i>    name: 'echo',</span><span class="ln"><i>7</i>    description: 'Echo the given text back, optionally with a prefix.',</span><span class="ln"><i>8</i>    parameters: {</span><span class="ln"><i>9</i>      type: 'object',</span><span class="ln"><i>10</i>      properties: { text: { type: 'string', description: 'Text to echo back.' } },</span><span class="ln"><i>11</i>      required: ['text'],</span><span class="ln"><i>12</i>      additionalProperties: false,</span><span class="ln"><i>13</i>    },</span><span class="ln"><i>14</i>    output: {</span><span class="ln"><i>15</i>      schema: {</span><span class="ln"><i>16</i>        type: 'object',</span><span class="ln"><i>17</i>        properties: { echoed: { type: 'string' } },</span><span class="ln"><i>18</i>        required: ['echoed'],</span><span class="ln"><i>19</i>        additionalProperties: false,</span><span class="ln"><i>20</i>      },</span><span class="ln"><i>21</i>      render: (_args, value) =&gt; [{ type: 'text', text: value.echoed }],</span><span class="ln"><i>22</i>    },</span><span class="ln"><i>23</i>    async execute(args) {</span><span class="ln"><i>24</i>      return { echoed: args.text }</span><span class="ln"><i>25</i>    },</span><span class="ln"><i>26</i>  })</span><span class="ln"><i>27</i>}</span></code></pre>
+  </div>
+
+  <p><strong>坑 1：<code>--dump-config</code> 不加载模块。</strong>它只把 bundle、profile、overlay 三层 YAML 组合后打印。条目出现只说明配置层拼上了；要证明模块能 import、<code>apply</code> 能跑，必须真正启动一次 profile。0.2 的验收以启动日志或工具调用为准。</p>
+  <p><strong>坑 2：新 profile 默认没有 app。</strong><code>dsh plugin --profile smoke add</code> 初始化出的 profile 只有 <code>@deepseek-ai/dsh-base</code>。直接启动会静默挂起（08 实测 25s 超时）。把 <code>@deepseek-ai/dsh-headless</code>（或 web）加进 <code>~/.dsh/profiles/smoke/package.json</code> 的 <code>dsh.profile.bundles</code>，再启动，才会正常报 <code>a task is required</code> 或进入交互。</p>
+</div>
+
+<div class="block">
+  <h4>练习</h4>
+  <p>练习前从 <code>main</code> 建分支：<code>git switch -c practice/stage-0</code>。练完切回 <code>main</code>。</p>
+
+  <div class="ex" data-ex="0.1">
+    <label class="ex-head"><input type="checkbox" data-check="0.1"><span class="t"><span class="ex-id">0.1</span>环境自检</span></label>
+    <details><summary>思路提示（3 条）</summary><ul>
+      <li><code>dsh --help</code> 看 profile 与 patch 参数；profile 目录在 <code>~/.dsh/profiles/&lt;name&gt;</code>。</li>
+      <li><code>--dump-config</code> 打印组合后的插件树；一个条目至少看 <code>id</code>、<code>name</code>、<code>config</code> 三个字段。</li>
+      <li>新 profile 只有 <code>@deepseek-ai/dsh-base</code>；没有 app 时启动会静默挂起，先补 <code>@deepseek-ai/dsh-headless</code>。</li>
+    </ul></details>
+    <div class="refs">参考：<code>08 票 Answer</code> · <code>README.md 安装章节</code></div>
+    <div class="accept">验收：能说出插件装在哪里、<code>--dump-config</code> 条目里有哪些字段；能复现一次静默挂起并解释原因。</div>
+  </div>
+
+  <div class="ex" data-ex="0.2">
+    <label class="ex-head"><input type="checkbox" data-check="0.2"><span class="t"><span class="ex-id">0.2</span>写一个 echo 工具插件</span></label>
+    <details><summary>思路提示（3 条）</summary><ul>
+      <li>最小可安装插件 = 入口模块 + <code>package.json</code>（<code>type: "module"</code>、<code>main</code>、<code>dsh.bundle.patch</code>）+ <code>cordis.patch.yml</code>。</li>
+      <li>纯 JS 直接 <code>ctx.tools.register(原始 ToolDefinition)</code>，不必 import <code>defineTool</code>；后者是 TS 的类型辅助。</li>
+      <li>先不装依赖、不编译，把 <code>index.js</code> 加载跑通，再补 TS。</li>
+    </ul></details>
+    <div class="refs">参考：<code>08 票 Answer 的最小 index.js</code> · <code>src/index.ts 工具注册段</code> · <code>cordis.patch.yml</code></div>
+    <div class="accept">验收：dsh 里能调用 <code>echo</code> 并看到 <code>echoed</code>；<code>--dump-config</code> 能看到条目，且实际 boot 过一次。</div>
+  </div>
+
+  <div class="ex" data-ex="0.3">
+    <label class="ex-head"><input type="checkbox" data-check="0.3"><span class="t"><span class="ex-id">0.3</span>给 echo 加 prefix 配置</span></label>
+    <details><summary>思路提示（3 条）</summary><ul>
+      <li><code>Config</code> 用 schemastery，字段给默认值。</li>
+      <li>patch 的 <code>config</code> 是整体替换，不是深合并。</li>
+      <li>改完先用 <code>--dump-config</code> 看最终值，再启动看输出。</li>
+    </ul></details>
+    <div class="refs">参考：<code>src/index.ts 的 Config</code> · <code>cordis.patch.yml</code></div>
+    <div class="accept">验收：改 patch 后输出变化；能解释整体替换的坑。</div>
+  </div>
+</div>
+
+<div class="block">
+  <h4>自测</h4>
+  <div class="quiz">
+    <div><strong>Q1.</strong> 一个插件被 dsh 加载，最少需要哪几个文件？</div>
+    <details><summary>参考答案</summary><div>入口模块（至少导出 <code>apply</code>；通常还有 <code>name</code> / <code>inject</code>）、<code>package.json</code>（含 <code>dsh.bundle.patch</code>）、<code>cordis.patch.yml</code>。TypeScript 与 <code>.d.ts</code> 是发布要求，不是加载前提。</div></details>
+  </div>
+  <div class="quiz">
+    <div><strong>Q2.</strong> <code>--dump-config</code> 能看到条目，就说明插件加载成功了吗？</div>
+    <details><summary>参考答案</summary><div>不。它只把 bundle、profile、overlay 三层 YAML 组合后打印，不 import 模块。要证明加载，必须 boot 一次。</div></details>
+  </div>
+  <div class="quiz">
+    <div><strong>Q3.</strong> patch 里的 <code>config</code> 是深合并还是整体替换？</div>
+    <details><summary>参考答案</summary><div>整体替换。只写一个字段会把同一条目的其余配置项丢掉；没写的字段回到 schema 默认值，不会保留 patch 之前的值。</div></details>
+  </div>
+  <div class="quiz">
+    <div><strong>Q4.</strong> 新建的 profile 启动后为什么可能静默挂起？</div>
+    <details><summary>参考答案</summary><div>它默认只有 <code>@deepseek-ai/dsh-base</code>，没有 app。把 <code>@deepseek-ai/dsh-headless</code> 或 web 加进 <code>dsh.profile.bundles</code>，才会出现可交互入口或明确的 <code>a task is required</code> 报错。</div></details>
+  </div>
+</div>
+
+<div class="block">
+  <h4>完成标志</h4>
+  <p>能在 dsh 里调用自己写的 <code>echo</code> 工具并看到 <code>echoed</code>。能说出插件装在哪个 profile、<code>--dump-config</code> 条目里有哪些字段，以及两个实测坑的成因。</p>
+</div>
+
+<div class="block">
+  <h4>本节最佳实践提示</h4>
+  <p>本地路径安装生成 <code>link:</code> 依赖，全程不联网；只有从 registry 拉包才需要网络。patch 里的 <code>id</code> 用稳定字符串，否则改配置时条目会被重挂。peer 版本是强制检查：不兼容时 <code>dsh plugin add</code> 直接拒绝，<code>allow-version ... --accept-risk</code> 只在你明确知道风险时用。headless 下别依赖浏览器登录态换来的短期 token，优先固定 API key 或固定 token 的 provider。</p>
+</div>
+      </div>
+    </section>
+
+    <section id="stage-1" data-stage="1" data-path="both">
+      <div class="meta">
+        <span class="chip">阶段 1</span>
+        <span class="chip">8–10h</span>
+        <span class="chip">两条路径都走</span>
+        <span class="chip" data-stage-count>0 / 3 练习</span>
+      </div>
+      <h2 class="stage-title"><span class="n">STAGE 1</span> TS + ESM/Node 够用集</h2>
+      <p class="goal">能读懂源文件的类型标注与 Node 调用。</p>
+      <!-- segments/stage-0-2.html 插入此处 -->
+      <div class="stage-body">
+<div class="block">
+  <h4>覆盖内容</h4>
+  <div>
+    <span class="chip">联合类型与收窄</span>
+    <span class="chip">泛型</span>
+    <span class="chip">as const</span>
+    <span class="chip">ESM 模块</span>
+    <span class="chip">node:fs/promises</span>
+    <span class="chip">node:path</span>
+    <span class="chip">child_process</span>
+    <span class="chip">Promise / AbortSignal</span>
+  </div>
+</div>
+
+<div class="block">
+  <h4>阅读材料</h4>
+  <ul>
+    <li><a href="https://www.typescriptlang.org/docs/handbook/2/everyday-types.html">TypeScript Handbook：Everyday Types</a>：联合类型、字面量类型、类型别名。</li>
+    <li><a href="https://www.typescriptlang.org/docs/handbook/2/narrowing.html">TypeScript Handbook：Narrowing</a>：<code>typeof</code>、真值收窄、可辨识联合。</li>
+    <li><a href="https://www.typescriptlang.org/docs/handbook/2/generics.html">TypeScript Handbook：Generics</a>：读到能解释 <code>Promise&lt;T&gt;</code> 即可，不必会写复杂泛型。</li>
+    <li><a href="https://www.typescriptlang.org/docs/handbook/2/modules.html">TypeScript Handbook：Modules</a>：ESM 的导入导出与 <code>.js</code> 后缀。</li>
+    <li><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise">MDN：Promise</a>、<a href="https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal">AbortSignal</a>：异步值与取消信号。</li>
+    <li><a href="https://nodejs.org/api/fs.html#fspromisesreadfilepath-options">Node：fs/promises</a>、<a href="https://nodejs.org/api/path.html">path</a>、<a href="https://nodejs.org/api/child_process.html">child_process</a>：本仓实际用到的三个模块。</li>
+    <li>本仓 <code>src/delegate-model.ts</code>（36 行）与 <code>src/session-store.ts:87-89</code>：练习 1.1、1.3 的参考位置。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>关键代码</h4>
+  <p>只学读懂源码所需的部分：能看懂类型标注、能写一个 ESM 脚本读写 JSON、能跟一次子进程调用。条件类型、映射类型、事件循环调度这些深水区跳过。</p>
+
+  <p><code>as const</code> 把数组固定成字面量元组，<code>typeof EFFORT_LEVELS[number]</code> 再把它变成联合。去掉 <code>as const</code>，类型退化成 <code>string[]</code>，<code>includes</code> 什么字符串都收。</p>
+
+  <div class="code">
+    <div class="code-head"><span class="fname">src/delegate-model.ts:22-36</span><span class="spacer"></span><button type="button" data-copy="export const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const&#10;&#10;export function delegateEffortFor(mainEffort: string | undefined): string | undefined {&#10;  if (!mainEffort) return undefined&#10;  const e = mainEffort.toLowerCase()&#10;  return (EFFORT_LEVELS as readonly string[]).includes(e) ? e : undefined&#10;}">复制</button></div>
+    <pre><code><span class="ln"><i>1</i>export const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const</span><span class="ln"><i>2</i> </span><span class="ln"><i>3</i>export function delegateEffortFor(mainEffort: string | undefined): string | undefined {</span><span class="ln"><i>4</i>  if (!mainEffort) return undefined</span><span class="ln"><i>5</i>  const e = mainEffort.toLowerCase()</span><span class="ln"><i>6</i>  return (EFFORT_LEVELS as readonly string[]).includes(e) ? e : undefined</span><span class="ln"><i>7</i>}</span></code></pre>
+  </div>
+
+  <div class="code">
+    <div class="code-head"><span class="fname">同一组字面量的类型写法</span><span class="spacer"></span><button type="button" data-copy="export type EffortLevel = typeof EFFORT_LEVELS[number]&#10;// 'low' | 'medium' | 'high' | 'xhigh' | 'max'">复制</button></div>
+    <pre><code><span class="ln"><i>1</i>export type EffortLevel = typeof EFFORT_LEVELS[number]</span><span class="ln"><i>2</i>// 'low' | 'medium' | 'high' | 'xhigh' | 'max'</span></code></pre>
+  </div>
+
+  <p><code>readFile</code> 不传 <code>'utf8'</code> 返回 Buffer；<code>JSON.parse</code> 要字符串。ESM 里没有 <code>__dirname</code>，需要目录时用 <code>import.meta.url</code> 配 <code>fileURLToPath</code>。TS 源码的相对导入写 <code>.js</code> 后缀，因为运行时加载的是编译后的 JS。</p>
+
+  <div class="code">
+    <div class="code-head"><span class="fname">stats.mjs</span><span class="spacer"></span><button type="button" data-copy="import { readFile } from 'node:fs/promises'&#10;&#10;const data = JSON.parse(await readFile('.dsh/tasks.json', 'utf8'))&#10;const counts = {}&#10;for (const task of data.tasks) {&#10;  counts[task.status] = (counts[task.status] ?? 0) + 1&#10;}&#10;console.log({ total: data.tasks.length, ...counts })">复制</button></div>
+    <pre><code><span class="ln"><i>1</i>import { readFile } from 'node:fs/promises'</span><span class="ln"><i>2</i> </span><span class="ln"><i>3</i>const data = JSON.parse(await readFile('.dsh/tasks.json', 'utf8'))</span><span class="ln"><i>4</i>const counts = {}</span><span class="ln"><i>5</i>for (const task of data.tasks) {</span><span class="ln"><i>6</i>  counts[task.status] = (counts[task.status] ?? 0) + 1</span><span class="ln"><i>7</i>}</span><span class="ln"><i>8</i>console.log({ total: data.tasks.length, ...counts })</span></code></pre>
+  </div>
+
+  <p><code>string | undefined</code> 这类联合，用之前先收窄：<code>if (!x)</code>、<code>typeof x === 'string'</code>，或者把联合写成可辨识联合后 <code>switch (x.type)</code>。收窄之后编译器才允许调用字符串方法或读属性。子进程与取消信号只需要看懂调用形式：<code>spawn(cmd, args, { signal })</code>，<code>signal</code> 触发后进程收到终止。</p>
+</div>
+
+<div class="block">
+  <h4>练习</h4>
+  <p>练习前从 <code>main</code> 建分支：<code>git switch -c practice/stage-1</code>。练完切回 <code>main</code>。</p>
+
+  <div class="ex" data-ex="1.1">
+    <label class="ex-head"><input type="checkbox" data-check="1.1"><span class="t"><span class="ex-id">1.1</span>给 delegate-model.ts 加一个联合类型分支</span></label>
+    <details><summary>思路提示（3 条）</summary><ul>
+      <li>先看 <code>delegateEffortFor</code> 的返回类型，决定新档位怎么参与判断。</li>
+      <li><code>as const</code> 让字面量数组保持窄类型；用 <code>typeof EFFORT_LEVELS[number]</code> 取联合。</li>
+      <li><code>EFFORT_LEVELS</code> 现在已有 <code>max</code>；新增一档（例如 <code>'minimal'</code>），或改 <code>delegateModelFor</code> 的模型映射。</li>
+    </ul></details>
+    <div class="refs">参考：<code>src/delegate-model.ts:22-36</code></div>
+    <div class="accept">验收：<code>npm run typecheck</code> 通过；能解释 <code>as const</code> 与 <code>typeof arr[number]</code> 的作用。</div>
+  </div>
+
+  <div class="ex" data-ex="1.2">
+    <label class="ex-head"><input type="checkbox" data-check="1.2"><span class="t"><span class="ex-id">1.2</span>写 Node 脚本统计任务</span></label>
+    <details><summary>思路提示（3 条）</summary><ul>
+      <li><code>readFile('.dsh/tasks.json', 'utf8')</code>；文件顶层是对象，任务在 <code>data.tasks</code>。</li>
+      <li>用 <code>.mjs</code> 或 <code>node --input-type=module</code>；ESM 没有 <code>__dirname</code>。</li>
+      <li>先 <code>console.log(data)</code> 看结构，再聚合。</li>
+    </ul></details>
+    <div class="refs">参考：<code>.dsh/tasks.json</code> · <code>Node docs fs/promises</code></div>
+    <div class="accept">验收：输出任务总数和每个状态的计数；能解释 ESM 与 CJS 的 <code>__dirname</code> 差异。</div>
+  </div>
+
+  <div class="ex" data-ex="1.3">
+    <label class="ex-head"><input type="checkbox" data-check="1.3"><span class="t"><span class="ex-id">1.3</span>抽一个纯函数并写断言</span></label>
+    <details><summary>思路提示（3 条）</summary><ul>
+      <li><code>src/session-store.ts:87-89</code> 的 <code>keyFor(namespace, cwd)</code> 是目标逻辑，但它没有导出；写一个等价函数即可。</li>
+      <li>纯函数只依赖参数，不读文件、不取当前时间。</li>
+      <li><code>node:test</code> + <code>node:assert/strict</code>，或直接用 <code>node:assert</code>。</li>
+    </ul></details>
+    <div class="refs">参考：<code>src/session-store.ts:87-89</code></div>
+    <div class="accept">验收：3 个断言全过；能说出纯函数为什么更容易测。</div>
+  </div>
+</div>
+
+<div class="block">
+  <h4>自测</h4>
+  <div class="quiz">
+    <div><strong>Q1.</strong> <code>as const</code> 解决了什么问题？</div>
+    <details><summary>参考答案</summary><div>它把数组固定成只读字面量元组，元素类型保留为 <code>'low' | 'medium' | ...</code>，而不是退化成 <code>string</code>。这样 <code>typeof arr[number]</code> 才能取到窄联合，<code>includes</code> 也只接受这些字面量。</div></details>
+  </div>
+  <div class="quiz">
+    <div><strong>Q2.</strong> <code>readFile(path)</code> 不传编码，返回什么？</div>
+    <details><summary>参考答案</summary><div>Buffer。要直接 <code>JSON.parse</code>，传 <code>'utf8'</code> 拿字符串；否则先 <code>.toString('utf8')</code>。</div></details>
+  </div>
+  <div class="quiz">
+    <div><strong>Q3.</strong> ESM 的相对导入为什么写 <code>./tracker.js</code>，而不是 <code>./tracker.ts</code>？</div>
+    <details><summary>参考答案</summary><div>Node 运行时加载的是编译后的 JS，扩展名必须真实存在。TS 在 NodeNext 解析下会把 <code>.js</code> 映射回源文件，所以源码里写 <code>.js</code>，编译产物不用再改。</div></details>
+  </div>
+  <div class="quiz">
+    <div><strong>Q4.</strong> 手里有 <code>string | undefined</code>，调用 <code>.toLowerCase()</code> 之前要先做什么？</div>
+    <details><summary>参考答案</summary><div>先收窄。例如 <code>if (!value) return</code>、<code>if (typeof value === 'string')</code>，或用可辨识联合加 <code>switch</code>。收窄后编译器才允许调用字符串方法。</div></details>
+  </div>
+</div>
+
+<div class="block">
+  <h4>完成标志</h4>
+  <p>能读懂 36 行的 <code>delegate-model.ts</code>，改一处类型后 <code>npm run typecheck</code> 通过；能写一个 ESM 脚本读取 JSON 并聚合出正确计数。</p>
+</div>
+
+<div class="block">
+  <h4>本节最佳实践提示</h4>
+  <p>项目要求 TypeScript <code>^5.4.5</code>；全局 6.0.3 会因 <code>baseUrl</code> 弃用报 <code>TS5101</code>，用项目自己的 <code>node_modules/typescript</code>。<code>tsc</code> 默认 <code>noEmitOnError: false</code>，看到 <code>lib/index.js</code> 不代表编译成功，检查退出码。表达枚举优先 <code>as const</code> + <code>typeof arr[number]</code>，不要为了省事写 <code>any</code>；本项目工具参数里的 <code>any</code> 是偏离，阶段 3 会修。</p>
+</div>
+      </div>
+    </section>
+
+    <section id="stage-2" data-stage="2" data-path="both">
+      <div class="meta">
+        <span class="chip">阶段 2</span>
+        <span class="chip">6–8h</span>
+        <span class="chip">两条路径都走</span>
+        <span class="chip" data-stage-count>0 / 3 练习</span>
+      </div>
+      <h2 class="stage-title"><span class="n">STAGE 2</span> Cordis 与插件骨架</h2>
+      <p class="goal">理解 name / inject / apply、service、fiber 与 Config schema。</p>
+      <!-- segments/stage-0-2.html 插入此处 -->
+      <div class="stage-body">
+<div class="block">
+  <h4>覆盖内容</h4>
+  <div>
+    <span class="chip">name / inject / apply</span>
+    <span class="chip">硬依赖与 PENDING</span>
+    <span class="chip">service 注册</span>
+    <span class="chip">fiber 生命周期</span>
+    <span class="chip">Config schema</span>
+    <span class="chip">ctx.get 与 inject 的区别</span>
+    <span class="chip">apply(ctx, config)</span>
+  </div>
+</div>
+
+<div class="block">
+  <h4>阅读材料</h4>
+  <ul>
+    <li><code>cordis-primer.zh.md</code>：Cordis 的核心概念与插件契约。</li>
+    <li><code>cordis-tutorial/02-lifecycle-and-effects.zh.md</code>：插件的生命周期与副作用清理。</li>
+    <li><code>cordis-tutorial/03-services.zh.md</code>：用 <code>Service</code> 子类注册服务，服务随 fiber 移除。</li>
+    <li><code>cordis-tutorial/05-config.zh.md</code>：配置如何进入 <code>apply</code>，schema 默认值怎么生效。</li>
+    <li><code>subsystems/core.zh.md</code>：DSH 核心服务清单，确认 <code>tools</code>、<code>jobs</code>、<code>sessionProjections</code> 分别由谁提供。</li>
+    <li><code>cordis-api/fiber.zh.md</code>、<code>cordis-api/context.zh.md</code>：PENDING 状态与 <code>ctx.get</code> 的语义。</li>
+    <li>本仓 <code>src/index.ts:20-27</code>（name / inject 与注释）、<code>src/index.ts:98-181</code>（Config）、<code>src/index.ts:1174-1185</code>（apply 与服务实例化）、<code>src/remote.ts:74-80</code>（<code>ClaudeCodeRemote</code> 的 <code>super(ctx, 'claudeCode')</code>）。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>关键代码</h4>
+  <p>一个插件模块用 <code>apply</code> 声明行为；<code>name</code> 用于诊断信息，<code>inject</code> 声明服务依赖，两者都是可选导出。Cordis 挂载它时创建一个 fiber；<code>inject</code> 里的服务全部就绪，才调用 <code>apply(ctx, config)</code>。缺一个，fiber 停在 PENDING，<code>apply</code> 不会执行。</p>
+
+  <div class="code">
+    <div class="code-head"><span class="fname">最小骨架（对照 src/index.ts）</span><span class="spacer"></span><button type="button" data-copy="import { Service, type Context } from '@deepseek-ai/cordis'&#10;import z from '@deepseek-ai/schemastery'&#10;&#10;export const name = 'claude-demo'&#10;export const inject = ['tools']&#10;&#10;export interface Config {&#10;  greeting: string&#10;}&#10;&#10;export const Config: z&lt;Config&gt; = z.object({&#10;  greeting: z.string().default('hello'),&#10;})&#10;&#10;class DemoService extends Service {&#10;  constructor(ctx: Context) {&#10;    super(ctx, 'claudeCodeDemo')&#10;  }&#10;}&#10;&#10;export function apply(ctx: Context, config: Config) {&#10;  new DemoService(ctx)&#10;  console.log(config.greeting)&#10;&#10;  const jobs = ctx.get('jobs')&#10;  if (jobs === undefined) return&#10;  // 这个 profile 没有 jobs 服务：apply 照常跑完，不阻塞 fiber&#10;}">复制</button></div>
+    <pre><code><span class="ln"><i>1</i>import { Service, type Context } from '@deepseek-ai/cordis'</span><span class="ln"><i>2</i>import z from '@deepseek-ai/schemastery'</span><span class="ln"><i>3</i> </span><span class="ln"><i>4</i>export const name = 'claude-demo'</span><span class="ln"><i>5</i>export const inject = ['tools']</span><span class="ln"><i>6</i> </span><span class="ln"><i>7</i>export interface Config {</span><span class="ln"><i>8</i>  greeting: string</span><span class="ln"><i>9</i>}</span><span class="ln"><i>10</i> </span><span class="ln"><i>11</i>export const Config: z&lt;Config&gt; = z.object({</span><span class="ln"><i>12</i>  greeting: z.string().default('hello'),</span><span class="ln"><i>13</i>})</span><span class="ln"><i>14</i> </span><span class="ln"><i>15</i>class DemoService extends Service {</span><span class="ln"><i>16</i>  constructor(ctx: Context) {</span><span class="ln"><i>17</i>    super(ctx, 'claudeCodeDemo')</span><span class="ln"><i>18</i>  }</span><span class="ln"><i>19</i>}</span><span class="ln"><i>20</i> </span><span class="ln"><i>21</i>export function apply(ctx: Context, config: Config) {</span><span class="ln"><i>22</i>  new DemoService(ctx)</span><span class="ln"><i>23</i>  console.log(config.greeting)</span><span class="ln"><i>24</i> </span><span class="ln"><i>25</i>  const jobs = ctx.get('jobs')</span><span class="ln"><i>26</i>  if (jobs === undefined) return</span><span class="ln"><i>27</i>  // 这个 profile 没有 jobs 服务：apply 照常跑完，不阻塞 fiber</span><span class="ln"><i>28</i>}</span></code></pre>
+  </div>
+
+  <p><code>inject</code> 声明的是硬依赖。Cordis 4.x 没有 optional-inject：<code>{ required, optional }</code> 这种对象写法会被当成两个字面量服务名，fiber 直接卡死。要可选，就在用到时 <code>ctx.get('name')</code>；服务不存在返回 <code>undefined</code>，不会阻止插件启动。</p>
+  <p><code>Service</code> 子类在构造函数里 <code>super(ctx, '名称')</code> 就完成注册，卸载时随 fiber 自动移除。<code>Config</code> 用 schemastery 定义字段和默认值，<code>apply</code> 拿到的是解析后的对象。patch 里的 <code>config</code> 整体替换整份配置，不是逐字段深合并。</p>
+</div>
+
+<div class="block">
+  <h4>练习</h4>
+  <p>练习前从 <code>main</code> 建分支：<code>git switch -c practice/stage-2</code>。练完切回 <code>main</code>。</p>
+
+  <div class="ex" data-ex="2.1">
+    <label class="ex-head"><input type="checkbox" data-check="2.1"><span class="t"><span class="ex-id">2.1</span>加配置项并观察生效</span></label>
+    <details><summary>思路提示（3 条）</summary><ul>
+      <li>在 <code>Config</code> 里加 <code>greeting: z.string().default('hello')</code>，接口同步加字段。</li>
+      <li>patch 的 <code>config</code> 整体替换；要保留的字段一起写。</li>
+      <li>打印放在 <code>apply</code> 开头；先用 <code>--dump-config</code> 看最终值，再启动看日志。</li>
+    </ul></details>
+    <div class="refs">参考：<code>src/index.ts:98-181</code> · <code>cordis.patch.yml</code></div>
+    <div class="accept">验收：启动日志出现自定义 greeting；能说出配置从 patch 到 <code>apply</code> 的路径。</div>
+  </div>
+
+  <div class="ex" data-ex="2.2">
+    <label class="ex-head"><input type="checkbox" data-check="2.2"><span class="t"><span class="ex-id">2.2</span>inject vs ctx.get 对照实验</span></label>
+    <details><summary>思路提示（3 条）</summary><ul>
+      <li>把 <code>tools</code> 从 <code>inject</code> 移除，改用 <code>ctx.get('tools')</code>，观察插件还能不能启动。</li>
+      <li>硬依赖缺失时 fiber 停在 PENDING；<code>ctx.get</code> 缺失只返回 <code>undefined</code>。</li>
+      <li><code>src/index.ts:21-27</code> 有本项目对 cordis 4.x optional-inject 的注释。</li>
+    </ul></details>
+    <div class="refs">参考：<code>src/index.ts:21-27</code> · <code>CHANGELOG.md 0.4.1</code></div>
+    <div class="accept">验收：能说出 PENDING 与 <code>undefined</code> 的差异；能解释 cordis 4.x optional-inject 的坑。</div>
+  </div>
+
+  <div class="ex" data-ex="2.3">
+    <label class="ex-head"><input type="checkbox" data-check="2.3"><span class="t"><span class="ex-id">2.3</span>注册并消费一个服务</span></label>
+    <details><summary>思路提示（3 条）</summary><ul>
+      <li>用 <code>Service</code> 子类注册 <code>claudeCodeDemo</code>（构造函数里 <code>super(ctx, 'claudeCodeDemo')</code>），或直接用 <code>ctx.set</code>。</li>
+      <li>消费端用 <code>ctx.get</code>，避免加载顺序把两个插件卡成 PENDING。</li>
+      <li>卸载提供方后，观察消费端还能不能取到服务。</li>
+    </ul></details>
+    <div class="refs">参考：<code>src/remote.ts:74-80</code></div>
+    <div class="accept">验收：服务能被取到；卸载后取不到；能画出注册与消费的时序。</div>
+  </div>
+</div>
+
+<div class="block">
+  <h4>自测</h4>
+  <div class="quiz">
+    <div><strong>Q1.</strong> <code>inject</code> 里写了一个当前 profile 没有的服务，会发生什么？</div>
+    <details><summary>参考答案</summary><div>fiber 停在 PENDING，<code>apply</code> 不执行。插件没有报错退出，但也没有注册任何东西；从外部看像是“没生效”。</div></details>
+  </div>
+  <div class="quiz">
+    <div><strong>Q2.</strong> <code>ctx.get('jobs')</code> 和把 <code>jobs</code> 写进 <code>inject</code>，差别在哪？</div>
+    <details><summary>参考答案</summary><div><code>inject</code> 是硬依赖：服务缺失就不启动。<code>ctx.get</code> 只读存储，不等注入条件，缺失返回 <code>undefined</code>。可选服务用后者，并在调用处处理 <code>undefined</code>。</div></details>
+  </div>
+  <div class="quiz">
+    <div><strong>Q3.</strong> patch 里只写 <code>config.greeting</code>，原来的 <code>model</code> 会保留吗？</div>
+    <details><summary>参考答案</summary><div>不会。patch 的 <code>config</code> 整体替换；没写的字段回到 schema 默认值。要把 <code>model</code> 保住，就在 patch 里一起写。</div></details>
+  </div>
+  <div class="quiz">
+    <div><strong>Q4.</strong> 通过 <code>Service</code> 子类注册的服务，什么时候从 <code>ctx</code> 上消失？</div>
+    <details><summary>参考答案</summary><div>提供方 fiber 卸载时。服务注册后立即可见，生命周期跟着 fiber 走，不需要手写清理。</div></details>
+  </div>
+</div>
+
+<div class="block">
+  <h4>完成标志</h4>
+  <p>能解释启动时注册了哪些东西：<code>name</code> / <code>inject</code> / <code>apply</code>、服务、配置。改 patch 里的配置能在启动日志里看到变化；能画出 <code>inject</code> 与 <code>ctx.get</code> 的时序差别。</p>
+</div>
+
+<div class="block">
+  <h4>本节最佳实践提示</h4>
+  <p><code>inject</code> 只放真正的硬依赖；可选服务用 <code>ctx.get</code> 在调用时取，取不到就按 <code>undefined</code> 处理，不要让整个 fiber 卡在 PENDING。配置字段给默认值和描述，patch 的 <code>config</code> 整体替换。服务用 <code>Service</code> 子类注册，生命周期跟 fiber 走。本项目 <code>src/index.ts:194-215</code> 的 <code>sessionProjections.stateOf</code> 已被官方弃用，读到这里先别照抄，阶段 4 会改成 <code>exec.agent.model.current()</code>。</p>
+</div>
+      </div>
+    </section>
+
+    <section id="stage-3" data-stage="3" data-path="both">
+      <div class="meta">
+        <span class="chip">阶段 3</span>
+        <span class="chip">6–8h</span>
+        <span class="chip">两条路径都走</span>
+        <span class="chip" data-stage-count>0 / 3 练习</span>
+      </div>
+      <h2 class="stage-title"><span class="n">STAGE 3</span> 工具与技能</h2>
+      <p class="goal">能独立写带参数校验的工具和运行时技能。</p>
+      <!-- segments/stage-3-5.html 插入此处 -->
+      <div class="stage-body">
+<div class="block">
+  <h4>覆盖内容</h4>
+  <div>
+    <span class="chip" style="margin:0 6px 6px 0">defineTool 四段式</span>
+    <span class="chip" style="margin:0 6px 6px 0">parameters 与运行时校验</span>
+    <span class="chip" style="margin:0 6px 6px 0">output.schema</span>
+    <span class="chip" style="margin:0 6px 6px 0">output.render</span>
+    <span class="chip" style="margin:0 6px 6px 0">presentCall</span>
+    <span class="chip" style="margin:0 6px 6px 0">timeoutMs</span>
+    <span class="chip" style="margin:0 6px 6px 0">ctx.tools.register</span>
+    <span class="chip" style="margin:0 6px 6px 0">ctx.skills.register</span>
+    <span class="chip" style="margin:0 6px 6px 0">SkillRegistration</span>
+  </div>
+</div>
+
+<div class="block">
+  <h4>阅读材料</h4>
+  <ul>
+    <li><code>cookbook/adding-a-tool</code>：最小工具、四段结构、<code>execute</code> 约定。</li>
+    <li><code>subsystems/tools</code>：参数 DSL、<code>InferArgs</code>、规范输出、<code>timeoutMs</code> 的校验规则。</li>
+    <li><code>subsystems/skills</code>：运行时技能的注册与生命周期。</li>
+    <li><code>src/index.ts:1188-1480</code>：本项目唯一的工具定义；对照 <code>parameters</code>、<code>output</code>、<code>execute</code>、<code>presentCall</code>。</li>
+    <li><code>src/index.ts:1174-1176</code>：两个运行时技能的注册点。</li>
+    <li><code>src/delegation-skill.ts:12-18</code>：<code>SkillRegistration</code> 的字段形状；正文选读。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>关键代码</h4>
+  <p><code>defineTool</code> 收四段：身份（<code>name</code> + <code>description</code>）、<code>parameters</code>、<code>output</code>（<code>schema</code> + <code>render</code>）、<code>execute</code>。外加一个可选的 <code>timeoutMs</code>。运行时先按 <code>parameters</code> 解析并校验模型传来的 <code>arguments</code>，失败就返回工具错误，不会进 <code>execute</code>；<code>execute</code> 的返回值再按 <code>output.schema</code> 校验，然后交给 <code>output.render</code>。模型看到的是 <code>render</code> 返回的 content blocks，不是 <code>execute</code> 的原始对象。</p>
+  <div class="code">
+    <div class="code-head"><span class="fname">cookbook/adding-a-tool（官方最小形态）</span></div>
+    <pre><code><span class="ln"><i>1</i>import { readFile } from 'node:fs/promises'</span>
+<span class="ln"><i>2</i>import type { Context } from '@deepseek-ai/cordis'</span>
+<span class="ln"><i>3</i>import { defineTool } from '@deepseek-ai/dsh-tools'</span>
+<span class="ln"><i>4</i> </span>
+<span class="ln"><i>5</i>export const name = 'my-tool'</span>
+<span class="ln"><i>6</i>export const inject = ['tools']</span>
+<span class="ln"><i>7</i> </span>
+<span class="ln"><i>8</i>export function apply(ctx: Context) {</span>
+<span class="ln"><i>9</i>  ctx.tools.register(defineTool({</span>
+<span class="ln"><i>10</i>    name: 'read_file',</span>
+<span class="ln"><i>11</i>    description: 'Read a file from disk.',          // what the model sees</span>
+<span class="ln"><i>12</i>    parameters: {</span>
+<span class="ln"><i>13</i>      path: { type: 'string', required: true, description: 'Absolute path' },</span>
+<span class="ln"><i>14</i>      limit: { type: 'number' },                     // optional by default</span>
+<span class="ln"><i>15</i>    },</span>
+<span class="ln"><i>16</i>    output: {</span>
+<span class="ln"><i>17</i>      schema: { type: 'string' },</span>
+<span class="ln"><i>18</i>      render: (_args, value) => [{ type: 'text', text: value }],</span>
+<span class="ln"><i>19</i>    },</span>
+<span class="ln"><i>20</i>    async execute(args, exec) {</span>
+<span class="ln"><i>21</i>      return readFile(args.path, { encoding: 'utf8', signal: exec.signal })</span>
+<span class="ln"><i>22</i>    },</span>
+<span class="ln"><i>23</i>  }))</span>
+<span class="ln"><i>24</i>}</span></code></pre>
+  </div>
+  <p><code>parameters</code> 是一个隐式的属性表：每个属性写 <code>required: true</code> 就是必填，不写就是可选。显式对象节点要声明 <code>additionalProperties: true | false</code>。schema 能表达的约束（类型、必填、枚举、联合、嵌套）会先校验；schema 表达不了的（非空字符串、正数、跨字段关系）仍要在 <code>execute</code> 里检查，并用 <code>ToolArgsError</code> 拒绝。</p>
+  <p><code>output.render</code> 只负责模型可见的内容；UI 卡片是另一条路径，用 <code>presentCall</code> / <code>presentResult</code> 声明。本项目的 <code>presentCall</code>（<code>src/index.ts:1474-1479</code>）返回一个 generic 卡片，和 <code>output.render</code> 互不影响。<code>timeoutMs</code> 必须是正的有限值；配置里写 0 会让工具注册失败。</p>
+</div>
+
+<div class="block">
+  <h4>练习</h4>
+  <p class="placeholder-note">练习前：<code>git switch -c practice/stage-3</code>；练完切回 <code>main</code>。每道练习的验收都在这张卡里勾选。</p>
+
+  <div class="ex" data-ex="3.1">
+    <label class="ex-head">
+      <input type="checkbox" data-check="3.1">
+      <span class="t"><span class="ex-id">3.1</span>给 claude_code 工具加 label 参数</span>
+    </label>
+    <p>在 <code>claude_code</code> 的 <code>parameters</code> 里加一个可选的 <code>label: string</code>，在 <code>execute</code> 里读取它，并让返回结果带上这个 label。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li>可选参数不要写 <code>required: true</code>；如果换成 schemastery，用 <code>.optional()</code>。</li>
+        <li><code>execute</code> 的 <code>args</code> 是校验后的对象，直接读 <code>args.label</code>，不要再解析一遍。</li>
+        <li>先加字段让 typecheck 报错，再补映射；不要用 <code>any</code> 绕过去。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/index.ts:1206-1287</code> · <code>src/index.ts:1329-1360</code></div>
+    <div class="accept">验收：传 label 时结果包含它；不传时不报错；<code>npm run typecheck</code> 通过。</div>
+  </div>
+
+  <div class="ex" data-ex="3.2">
+    <label class="ex-head">
+      <input type="checkbox" data-check="3.2">
+      <span class="t"><span class="ex-id">3.2</span>修工具契约的三处偏离</span>
+    </label>
+    <p>修三处：把 <code>execute(args: any)</code> 和 <code>render(_args: any, value: any)</code> 改成 <code>defineTool</code> 推断出的类型；给 <code>output.schema</code> 补上 <code>required</code>；把 <code>Config</code> 里的 <code>permissionMode</code> 和 <code>effort</code> 从无约束字符串改成枚举。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li>先删掉显式 <code>any</code>，让 <code>defineTool</code> 的 <code>InferArgs</code> / <code>InferValue</code> 接手；报错的地方才是需要收窄的地方。</li>
+        <li><code>output.schema</code> 是 JSON Schema 时写 <code>required: ['ok']</code>；是 schemastery 时给字段加 <code>.required()</code>。两选一，别混用。</li>
+        <li>非法配置应该在加载时失败，不是等 <code>execute</code> 里再兜底。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/index.ts:98-181</code> · <code>src/index.ts:1206-1329</code> · 09 票 D4/D5</div>
+    <div class="accept">验收：typecheck 通过；patch 里把 <code>permissionMode</code> 写成拼错的值会在启动时报错；<code>required: ['task']</code> 生效。</div>
+  </div>
+
+  <div class="ex" data-ex="3.3">
+    <label class="ex-head">
+      <input type="checkbox" data-check="3.3">
+      <span class="t"><span class="ex-id">3.3</span>写一个运行时技能</span>
+    </label>
+    <p>注册一个 <code>my-tips</code> 运行时技能，内容是一段「什么时候用 echo、什么时候用 text_stats」的简短规程。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li>用 <code>ctx.skills.register</code>，<code>source</code> 写 <code>'runtime'</code>。</li>
+        <li>先照 <code>delegation-skill.ts</code> 的 <code>SkillRegistration</code> 形状写 <code>name</code> / <code>description</code> / <code>whenToUse</code> / <code>content</code>。</li>
+        <li>技能正文是给模型读的规程，写触发条件和步骤，不要写代码注释式的一句话。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/delegation-skill.ts:12-18</code> · <code>src/index.ts:1174-1176</code></div>
+    <div class="accept">验收：技能列表可见；模型能读到内容；卸载插件后技能消失；正文没有 TODO。</div>
+  </div>
+</div>
+
+<div class="block">
+  <h4>自测</h4>
+
+  <div class="quiz">
+    <div><strong>Q1.</strong> <code>defineTool</code> 的四段分别是什么？哪一段写业务逻辑？</div>
+    <details><summary>参考答案</summary><div>身份（<code>name</code> + <code>description</code>）、<code>parameters</code>、<code>output</code>（<code>schema</code> + <code>render</code>）、<code>execute</code>。只有 <code>execute</code> 写业务逻辑；<code>output.render</code> 只是把校验后的规范值格式化成模型可见内容。<code>timeoutMs</code> 是附加的调度元数据。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q2.</strong> 参数校验发生在 <code>execute</code> 之前还是之后？校验失败时 <code>execute</code> 会跑吗？</div>
+    <details><summary>参考答案</summary><div>之前。注册表按 <code>parameters</code> 校验模型传来的 arguments，失败就走工具错误路径，<code>execute</code> 不会执行。所以 <code>execute</code> 里不用再写一遍类型和必填检查。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q3.</strong> <code>execute</code> 返回的对象和 <code>output.render</code> 返回的 content blocks，哪个是模型看到的？</div>
+    <details><summary>参考答案</summary><div><code>render</code> 的返回值。execute 的返回值先按 <code>output.schema</code> 校验，再交给 render；模型上下文里只有 render 产出的 content blocks。execute 的返回值是给程序化调用方和 render 用的规范值。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q4.</strong> <code>presentCall</code> 和 <code>output.render</code> 有什么区别？</div>
+    <details><summary>参考答案</summary><div><code>output.render</code> 决定模型可见内容；<code>presentCall</code> 决定 UI 的 pending 卡片（标题、图标、原始参数）。两者互不影响，UI 展示失败也不该让工具结果失败。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q5.</strong> <code>timeoutMs</code> 写 0 会发生什么？</div>
+    <details><summary>参考答案</summary><div>注册表要求 <code>timeoutMs</code> 是正的有限值，0 可能让工具注册失败。配置里要给正数；长任务按需放大，不要用 0 表示「不超时」。</div></details>
+  </div>
+</div>
+
+<div class="block">
+  <h4>官方推荐 vs 本项目做法</h4>
+
+  <div class="ex" id="bp-3-tool-contract">
+    <p><strong>官方推荐：</strong><code>parameters</code> 用属性表写清楚类型与必填，让 <code>defineTool</code> 在 <code>execute</code> 前完成校验并推断 <code>args</code>；<code>output.schema</code> 声明规范返回值，<code>output.render</code> 只负责模型可见内容；<code>timeoutMs</code> 是正有限值。出处：<code>cookbook/adding-a-tool</code>、<code>subsystems/tools</code>。</p>
+    <p><strong>本项目做法：</strong><code>parameters</code> 用的是正确的属性表（<code>src/index.ts:1206-1287</code>），但 <code>execute(args: any, exec)</code>（<code>:1329</code>）和 <code>render(_args: any, value: any)</code>（<code>:1308</code>）显式写了 <code>any</code>；<code>output.schema</code> 有 <code>additionalProperties: false</code> 和 properties，但没有 <code>required</code>（<code>:1288-1307</code>）；<code>Config.timeoutMs</code> 只有 <code>z.number()</code>，没有下限（<code>:110</code>）。</p>
+    <p><strong>差异：</strong>schema 还在，类型契约没了。<code>execute</code> 里 <code>args</code> 可以是任何东西，<code>render</code> 里 <code>value</code> 也是；输出少一个字段照样能渲染。调用方传错参数时，错误信息来自运行时而不是类型检查。</p>
+    <p><strong>原因：</strong>这个工具有二十多个可选参数，显式 <code>any</code> 是让 1481 行文件先通过 typecheck 的最快改法；输出 schema 是照着旧 JSON Schema 写的，<code>required</code> 当时没补。fork 自上游，历史写法一直沿用。</p>
+    <p><strong>你该怎么做：</strong>新工具照 cookbook 写，别写 <code>any</code>。改这个工具时先删 <code>any</code>，让类型错误把要收窄的地方列出来；给输出补上你承诺的 <code>required</code>；给 <code>timeoutMs</code> 加 <code>.min(1)</code>。读本项目时把这几处当历史写法，不要当模板。</p>
+  </div>
+
+  <div class="ex" id="bp-3-config-enums">
+    <p><strong>官方推荐：</strong>配置里有限的取值集合用 <code>z.union([...])</code> 或等价枚举，非法值在加载时失败。出处：<code>cordis-tutorial/05-config</code>、<code>config-catalog</code>。</p>
+    <p><strong>本项目做法：</strong><code>permissionMode: z.string()</code>（<code>src/index.ts:106</code>）和 <code>effort: z.string()</code>（<code>:116</code>）都没有枚举；只有 <code>bypassPermissions</code> 在运行时检查配套的 <code>allowDangerouslySkipPermissions</code>（<code>:342-346</code>）。同一文件里的 <code>thinkingMode</code> 却用了 <code>z.union([...THINKING_MODES])</code>（<code>:118</code>），工具参数层的 <code>permissionMode</code> 也用了 <code>enum</code>（<code>:1214-1218</code>）。</p>
+    <p><strong>差异：</strong>patch 里把 <code>acceptEdits</code> 拼错，配置能加载，错误值一路传到 SDK；工具参数层反而比配置层严。</p>
+    <p><strong>原因：</strong><code>permissionMode</code> 和 <code>effort</code> 的合法集合来自 Claude Code CLI，随上游版本变化；作者选择透传，避免本地枚举把新值卡住。</p>
+    <p><strong>你该怎么做：</strong>自己插件的配置用 <code>z.union</code> 锁死已知集合。如果确实要跟随上游，至少在 <code>apply</code> 开头校验一次并给出可读错误，不要让它跑到 SDK 才失败。</p>
+  </div>
+</div>
+
+<div class="block">
+  <h4>本节「不要照抄」</h4>
+  <ul>
+    <li>不要照抄 <code>execute(args: any)</code> 和 <code>render(_args: any, value: any)</code>。schema 在，类型却丢了，复制时很容易一起带过去。</li>
+    <li>不要照抄没有 <code>required</code> 的 <code>output.schema</code>。你承诺返回哪个字段，就让 schema 也这么承诺。</li>
+    <li>不要把 <code>permissionMode</code> / <code>effort</code> 写成无约束的 <code>z.string()</code>。</li>
+    <li>不要用 <code>timeoutMs: 0</code> 表示不超时；注册表要求正数。</li>
+    <li>不要把二十多个参数全塞进一个工具。先问每个参数是不是每次调用都需要；不需要的放到配置里。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>完成标志</h4>
+  <p>你能独立写出一个被模型调用、参数有校验、输出有 schema 的工具；能说清校验发生在 <code>execute</code> 之前，<code>output.render</code> 才是模型看到的内容；也能注册一个随插件一起注册和卸载的运行时技能。</p>
+</div>
+      </div>
+    </section>
+
+    <section id="stage-4" data-stage="4" data-path="full">
+      <div class="meta">
+        <span class="chip">阶段 4</span>
+        <span class="chip">12–14h</span>
+        <span class="chip hot">完整路径必修</span>
+        <span class="chip" data-stage-count>0 / 3 练习</span>
+      </div>
+      <h2 class="stage-title"><span class="n">STAGE 4</span> 宿主业务载荷</h2>
+      <p class="goal">读懂一次委派从工具调用到 SDK 消息流。</p>
+      <div class="path-notice">
+        <span>最短路径跳过这一阶段；完整路径必修。</span>
+        <button type="button" class="iconbtn" data-expand>仍然展开</button>
+      </div>
+      <!-- segments/stage-3-5.html 插入此处 -->
+      <div class="stage-body">
+<div class="block">
+  <h4>覆盖内容</h4>
+  <div>
+    <span class="chip" style="margin:0 6px 6px 0">tracker.ts 双流</span>
+    <span class="chip" style="margin:0 6px 6px 0">session-store.ts 续话</span>
+    <span class="chip" style="margin:0 6px 6px 0">output-file.ts 回读</span>
+    <span class="chip" style="margin:0 6px 6px 0">remote.ts @Remote</span>
+    <span class="chip" style="margin:0 6px 6px 0">index.ts execute / buildQueryOptions / runClaude</span>
+    <span class="chip" style="margin:0 6px 6px 0">ClaudeEvent</span>
+    <span class="chip" style="margin:0 6px 6px 0">ctx.jobs.start</span>
+    <span class="chip" style="margin:0 6px 6px 0">resume plan</span>
+    <span class="chip" style="margin:0 6px 6px 0">live-shell.ts（选读）</span>
+  </div>
+</div>
+
+<div class="block">
+  <h4>阅读材料</h4>
+  <ul>
+    <li><code>subsystems/jobs</code>：生产方、消费式 <code>read</code>、非消费式 <code>readAt</code>、<code>kill</code>、名册与观测流。</li>
+    <li><code>subsystems/persistence</code>、<code>subsystems/session</code>：会话恢复与投影。</li>
+    <li><code>subsystems/subagent</code>：DSH 自己的子代理机制，和 Claude Code 的 subagent 分开看。</li>
+    <li><code>cookbook/adding-an-llm-adapter</code>：对照外部模型适配器怎么接进工具链。</li>
+    <li>源码顺序：<code>src/tracker.ts</code> → <code>src/session-store.ts</code> → <code>src/output-file.ts</code> → <code>src/remote.ts</code> → <code>src/index.ts:881-1172</code>。</li>
+    <li><code>src/live-shell.ts</code>：选读。看它为什么存在，以及 SDK 为什么不转发内置 Bash 的 stdout。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>关键代码</h4>
+  <p>一次委派的主链路：<code>execute</code> 收参数 → <code>sessions.plan</code> 决定继续还是新开会话 → 前台直接跑，后台交给 <code>jobs.start</code> → <code>runWithSession</code> → <code>runClaude</code> → <code>query()</code> 拿到 SDK 消息流。<code>runClaude</code> 把消息分给两个观察者：<code>onDelta</code> 是给模型 <code>job_output</code> 的文本流，<code>onEvent</code> 是给面板的结构化事件流。两条流独立，面板读事件不会消耗模型要读的字节。</p>
+  <div class="code">
+    <div class="code-head"><span class="fname">src/index.ts:722-754（节选）</span></div>
+    <pre><code><span class="ln"><i>722</i>    for await (const msg of stream) {</span>
+<span class="ln"><i>723</i>      if (msg.type === 'assistant') {</span>
+<span class="ln"><i>724</i>        sessionId = msg.session_id</span>
+<span class="ln"><i>725</i>        if (msg.error) failure = msg.error</span>
+<span class="ln"><i>726</i>        for (const block of msg.message.content as any[]) {</span>
+<span class="ln"><i>727</i>          if (block.type === 'text') {</span>
+<span class="ln"><i>728</i>            output += block.text</span>
+<span class="ln"><i>729</i>            // Partial deltas already painted this text; emit only whatever the</span>
+<span class="ln"><i>730</i>            // stream did not cover, so the panel never shows it twice.</span>
+<span class="ln"><i>731</i>            const covered = deltaText.length > 0 && block.text.startsWith(deltaText)</span>
+<span class="ln"><i>732</i>            const rest = covered ? block.text.slice(deltaText.length) : block.text</span>
+<span class="ln"><i>733</i>            if (rest) onEvent?.({ type: 'text', text: rest })</span>
+<span class="ln"><i>734</i>            deltaText = ''</span>
+<span class="ln"><i>735</i>          } else if (block.type === 'thinking') {</span>
+<span class="ln"><i>736</i>            const thinking = typeof block.thinking === 'string' ? block.thinking : ''</span>
+<span class="ln"><i>737</i>            if (thinking) {</span>
+<span class="ln"><i>738</i>              onEvent?.({</span>
+<span class="ln"><i>739</i>                type: 'thinking',</span>
+<span class="ln"><i>740</i>                thinking,</span>
+<span class="ln"><i>741</i>                ...(typeof block.signature === 'string' ? { signature: block.signature } : {}),</span>
+<span class="ln"><i>742</i>              })</span>
+<span class="ln"><i>743</i>            }</span>
+<span class="ln"><i>744</i>          } else if (block.type === 'tool_use') {</span>
+<span class="ln"><i>745</i>            toolsUsed.add(block.name)</span>
+<span class="ln"><i>746</i>            onDelta?.(`\n[tool] ${block.name}\n`)</span>
+<span class="ln"><i>747</i>            onEvent?.({</span>
+<span class="ln"><i>748</i>              type: 'tool_use',</span>
+<span class="ln"><i>749</i>              ...(typeof block.id === 'string' ? { id: block.id } : {}),</span>
+<span class="ln"><i>750</i>              name: String(block.name),</span>
+<span class="ln"><i>751</i>              input: toEventInput(block.input),</span>
+<span class="ln"><i>752</i>            })</span>
+<span class="ln"><i>753</i>          }</span>
+<span class="ln"><i>754</i>        }</span></code></pre>
+  </div>
+  <p>SDK 的 <code>assistant</code> 消息按 content block 拆成 <code>text</code> / <code>thinking</code> / <code>tool_use</code>；<code>user</code> 消息里的 <code>tool_result</code> 也转成事件；<code>stream_event</code> 的 text delta 同时喂给两条流，所以面板能边生成边显示；<code>result</code> 消息给出 cost、turns、duration，最后用来 settle。</p>
+  <div class="code">
+    <div class="code-head"><span class="fname">src/remote.ts:101-121</span></div>
+    <pre><code><span class="ln"><i>101</i>  @Remote</span>
+<span class="ln"><i>102</i>  async listJobs(sessionId: string): Promise&lt;JobInfoWire[]&gt; {</span>
+<span class="ln"><i>103</i>    return this.tracker.list(sessionId).map((job) => ({ ...toJobInfo(job), model: job.model ?? null }))</span>
+<span class="ln"><i>104</i>  }</span>
+<span class="ln"><i>105</i> </span>
+<span class="ln"><i>106</i>  /**</span>
+<span class="ln"><i>107</i>   * Incremental output from an absolute offset. There is no server-side cursor,</span>
+<span class="ln"><i>108</i>   * so any number of panels (or windows) can read the same job independently.</span>
+<span class="ln"><i>109</i>   */</span>
+<span class="ln"><i>110</i>  @Remote</span>
+<span class="ln"><i>111</i>  async readOutput(sessionId: string, jobId: string, fromOffset: number): Promise&lt;ReadOutputResult&gt; {</span>
+<span class="ln"><i>112</i>    const job = this.tracker.require(sessionId, jobId)</span>
+<span class="ln"><i>113</i>    const offset = Number.isSafeInteger(fromOffset) &amp;&amp; fromOffset &gt; 0 ? fromOffset : 0</span>
+<span class="ln"><i>114</i>    const chunk = job.read(offset)</span>
+<span class="ln"><i>115</i>    return {</span>
+<span class="ln"><i>116</i>      text: chunk.text,</span>
+<span class="ln"><i>117</i>      nextOffset: chunk.nextOffset,</span>
+<span class="ln"><i>118</i>      truncated: chunk.truncated,</span>
+<span class="ln"><i>119</i>      status: job.status,</span>
+<span class="ln"><i>120</i>    }</span>
+<span class="ln"><i>121</i>  }</span></code></pre>
+  </div>
+  <p><code>ClaudeCodeRemote</code> 是普通 <code>TypertRemoteService</code>。api-gateway 的 SRC 模式反射 <code>@Remote</code> 方法，把方法名和参数名直接当 wire 字段（<code>claudeCode/listJobs</code>、<code>claudeCode/readOutput</code>）。<code>readOutput</code> 用绝对偏移，任意多个面板都能从头或从断点读；<code>tracker.ts</code> 的文本环用 <code>absoluteBase</code> 实现同样的语义（<code>src/index.ts:910-953</code>）。</p>
+  <p><code>session-store.ts</code> 把「工作流名 + 目录」映射到 Claude 会话 id，并写回磁盘；<code>output-file.ts</code> 只读被事件流登记过的持久化输出文件（<code>tracker.allowOutputPath</code>），面板不能要求宿主读任意路径。</p>
+</div>
+
+<div class="block">
+  <h4>练习</h4>
+  <p class="placeholder-note">练习前：<code>git switch -c practice/stage-4</code>；练完切回 <code>main</code>。这组练习只在完整路径必做。</p>
+
+  <div class="ex" data-ex="4.1">
+    <label class="ex-head">
+      <input type="checkbox" data-check="4.1">
+      <span class="t"><span class="ex-id">4.1</span>加 notice 事件并贯通</span>
+    </label>
+    <p>在 <code>ClaudeEvent</code> 联合里加 <code>{ type: 'notice'; text: string }</code>，让 <code>tracker</code> 接受它、<code>remote</code> 的 wire 校验放行它、<code>EventView</code> 把它渲染成一行提示。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li>先改类型，让编译器列出所有要补的分支：tracker 的 shrink/序列化、<code>client/api.ts</code> 的 <code>toEvent</code>、<code>EventView</code> 的 switch。</li>
+        <li><code>client/api.ts:49-110</code> 是手写 wire 校验，未知类型会被丢掉；不加分支，事件到客户端就消失。</li>
+        <li><code>EventView</code> 只加一个最简分支，不要顺手改其他渲染。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/tracker.ts:34-69</code> · <code>src/remote.ts:101-140</code> · <code>src/client/api.ts:49-110</code> · <code>src/client/EventView.tsx</code></div>
+    <div class="accept">验收：面板显示 notice；typecheck 通过；grep 不到漏掉的分支。</div>
+  </div>
+
+  <div class="ex" data-ex="4.2">
+    <label class="ex-head">
+      <input type="checkbox" data-check="4.2">
+      <span class="t"><span class="ex-id">4.2</span>替换已弃用的 stateOf</span>
+    </label>
+    <p>把 <code>sessionProjections.stateOf(session, 'modelSelection')</code> 换成 <code>exec.agent.model.current()</code>（或所有者内部的 awaited <code>handle.stateOf</code>），保持模型选择行为不变。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li>先看 <code>src/index.ts:194-215</code> 的 <code>currentMainSelection</code>，注意它还有 <code>agent.options.model</code> 兜底。</li>
+        <li>官方 <code>upgrade-guide/v0.2.1-rc.2</code> 明确说注册表级 <code>stateOf</code> 已弃用；普通读取用 <code>agent.model.current()</code>。</li>
+        <li>替换后跑一次真实委派，确认 <code>followMainModel</code> 仍然生效。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/index.ts:194-215</code> · 09 票 D1 · <code>upgrade-guide/v0.2.1-rc.2</code></div>
+    <div class="accept">验收：typecheck 通过；运行时行为不变；能说出为什么弃用、为什么不再需要 <code>ctx.get('sessionProjections')</code>。</div>
+  </div>
+
+  <div class="ex" data-ex="4.3">
+    <label class="ex-head">
+      <input type="checkbox" data-check="4.3">
+      <span class="t"><span class="ex-id">4.3</span>跟一遍后台作业取消链路</span>
+    </label>
+    <p>跟 <code>jobs.start</code> → <code>run</code> → <code>cancel</code> / <code>kill</code> 的路径，在关键点加日志，跑一次 UI 取消。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li><code>src/index.ts:989-1172</code> 是作业登记与 <code>run</code> 回调；<code>src/remote.ts:163-172</code> 的 <code>cancel</code> 调 <code>cancelFromUi</code>。</li>
+        <li>日志要证明 abort 到了子进程：live shell 的 <code>killAll</code>，或 SDK 的 <code>abortController</code>。</li>
+        <li>官方推荐取消走 <code>ctx.jobs.kill</code>；先对比本项目自己的 AbortController，再判断差异。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/index.ts:989-1172</code> · <code>src/remote.ts:163-172</code> · <code>src/tracker.ts:1-12</code> · 09 票 D3</div>
+    <div class="accept">验收：日志能串起「UI → RPC → AbortController → 子进程 / claude」；能解释前台作业没有 DSH jobId 时的差异；作业最终 settle 为 killed。</div>
+  </div>
+</div>
+
+<div class="block">
+  <h4>自测</h4>
+
+  <div class="quiz">
+    <div><strong>Q1.</strong> 一次委派从工具调用到面板，经过哪些模块？</div>
+    <details><summary>参考答案</summary><div><code>execute</code> → <code>sessions.plan</code> → 前台 / <code>jobs.start</code> → <code>runWithSession</code> → <code>runClaude</code> → <code>query</code>（SDK）→ <code>onDelta</code> / <code>onEvent</code> → <code>JobTracker</code> 的文本环 / 事件环 → <code>ClaudeCodeRemote</code> 的 <code>@Remote</code> → <code>client/api.ts</code> → <code>ClaudeCodeView</code> / <code>EventView</code> / <code>OutputView</code>。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q2.</strong> 注册表级 <code>stateOf</code> 为什么被弃用？替代入口是什么？</div>
+    <details><summary>参考答案</summary><div>它在没有插件注册该 key 时返回 <code>undefined</code>，分不清「没注册」和「没有值」；官方把读取交给投影的所属服务。普通读取用 <code>agent.model.current()</code>，所有者内部用 awaited <code>handle.stateOf(session)</code>。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q3.</strong> <code>ctx.jobs.read</code> 和 <code>ctx.jobs.readAt</code> 有什么区别？面板该用哪个？</div>
+    <details><summary>参考答案</summary><div><code>read</code> 是模型消费式读取，会推进模型游标；<code>readAt</code> 从绝对偏移读，不动模型游标，任意多个观察者可以各读各的。面板应该用 <code>readAt</code>，或者像本项目一样用等价的绝对偏移环。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q4.</strong> 本项目为什么不用 <code>ctx.jobs.kill</code>？这个理由现在还成立吗？</div>
+    <details><summary>参考答案</summary><div><code>tracker.ts:1-12</code> 说 kill 会把作业标记为已上报，模型收不到完成通知。当前官方文档相反：<code>packages/api/job-controller</code> 的 <code>kill</code> 明确写「owner agent still receives the completion notice」。这个理由已经过期。现行代码保留自建取消路径，主要是历史实现和面板自己的取消文案；照官方做时，用 <code>ctx.jobs.kill(id, caller, reason)</code>。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q5.</strong> <code>@Remote</code> 的方法参数名为什么不能随便改？</div>
+    <details><summary>参考答案</summary><div>SRC 模式从方法参数名生成 wire 字段。改参数名等于改协议，旧客户端会传错字段或读空。要么把参数名当公开契约冻结，要么改用生成的 Typert 契约。</div></details>
+  </div>
+</div>
+
+<div class="block">
+  <h4>官方推荐 vs 本项目做法</h4>
+
+  <div class="ex" id="bp-4-stateof">
+    <p><strong>官方推荐：</strong>不要用注册表级 <code>sessionProjections.stateOf(session, key)</code>。普通读取用 <code>agent.model.current()</code>，所有者内部用 awaited <code>handle.stateOf(session)</code>；投影的读取归所属服务。出处：<code>upgrade-guide/v0.2.1-rc.2</code>、<code>upgrade-guide/v0.2.1-alpha.4</code>。</p>
+    <p><strong>本项目做法：</strong><code>currentMainSelection</code>（<code>src/index.ts:194-215</code>）用 <code>ctx.get('sessionProjections')</code> 拿到投影服务，再调 <code>projections.stateOf(a.session, 'modelSelection')</code>，取 <code>pending ?? lastUsed</code>；拿不到就退回 <code>agent.options.model</code>。</p>
+    <p><strong>差异：</strong>项目用的是已弃用的同步投影读取。它依赖服务注册时机，拿不到时只能退到创建时的模型值，运行中切换的 effort 也会丢。</p>
+    <p><strong>原因：</strong>代码来自 0.2 早期，当时这是公开入口；<code>ctx.get</code> 懒读取是为了绕开 cordis 4.x 没有 optional-inject 的问题（写进 <code>inject</code> 会阻塞 fiber），同步调用又不用改调用点为 async。</p>
+    <p><strong>你该怎么做：</strong>新插件直接 <code>exec.agent.model.current()</code>。改本项目时先确认 agent 对象形状，再替换并跑一次真实委派；不要把 <code>ctx.get('sessionProjections')</code> 当通用模式复制。</p>
+  </div>
+
+  <div class="ex" id="bp-4-jobs">
+    <p><strong>官方推荐：</strong>后台作业通过 <code>ctx.jobs.start({ kind, label, owner, run })</code> 生产；模型用消费式 <code>read</code>，观察者用非消费的 <code>readAt</code>；取消用 <code>kill(id, caller, reason)</code>，reason 会并入终态 detail；浏览器通过 <code>job.list</code> / <code>job.follow</code> Remote 流拿名册和输出。出处：<code>subsystems/jobs</code>、<code>cookbook/adding-a-tool</code>。</p>
+    <p><strong>本项目做法：</strong><code>jobs.start</code> 只负责登记作业和给模型 <code>handle.append</code> 推送（<code>src/index.ts:989-1010</code>）；另建 <code>JobTracker</code>，维护 500 KB 文本环和 2 MB 结构化事件环；<code>remote.ts</code> 暴露 <code>claudeCode/readOutput</code>、<code>readEvents</code>、<code>cancel</code>；取消走自己的 <code>AbortController</code>，让作业正常 settle 成 killed。</p>
+    <p><strong>差异：</strong>官方的 <code>readAt</code> 已经支持绝对偏移和多观察者，文本环这一层是重复实现。官方环只保留文本 chunk（stdout / stderr / log），没有面板需要的 <code>tool_use</code> / <code>tool_result</code> / <code>thinking</code> 结构化事件；本项目的第二个环是为这个补的。项目注释里「kill 吞通知」的理由与当前文档相反：job-controller 的 kill 明确说 owner agent 仍会收到完成通知。</p>
+    <p><strong>原因：</strong>fork 时的 jobs seam 还没有 <code>readAt</code> 和 job-controller 流；面板要的不只是文本，还有能直接渲染的块结构；官方结算后的保留量（默认 16 KB）比面板想回放的少。第一条是历史，后两条是产品需求。</p>
+    <p><strong>你该怎么做：</strong>文本和名册优先用 <code>ctx.jobs.readAt</code> / <code>job.list</code> / <code>job.follow</code>；取消用 <code>ctx.jobs.kill(id, caller, reason)</code>。只有官方环不携带的数据（结构化事件、自己的工作流登记）才自建缓冲。不要复制 <code>tracker.ts</code> 头部那段已经过期的 kill 理由。</p>
+  </div>
+
+  <div class="ex" id="bp-4-rpc">
+    <p><strong>官方推荐：</strong>Host 业务服务用 Typert Remote decorator 标记方法，Host 侧生成严格的 descriptor、runtime codec 和类型声明；Client 侧从生成的 service face 调 <code>ctx.remote.&lt;namespace&gt;</code>，不要直接依赖 gateway 实现。后台作业已经有 <code>job.list</code> / <code>job.follow</code> Remote 流。出处：<code>subsystems/web-client</code>、<code>subsystems/jobs</code>。</p>
+    <p><strong>本项目做法：</strong><code>ClaudeCodeRemote</code> 走 SRC 运行时反射，不做 Typert codegen（<code>src/remote.ts:1-14</code>）；客户端 <code>api.ts</code> 直接 <code>connection.rpc.call('/api', 'claudeCode/&lt;method&gt;', { args })</code>（<code>:162-173</code>），并在 <code>toEvent</code> 里逐字段重新校验（<code>:49-110</code>）。</p>
+    <p><strong>差异：</strong>没有生成契约。方法参数名（<code>sessionId</code> / <code>jobId</code> / <code>fromOffset</code>）直接变成公开 wire 字段；客户端类型是手写镜像；宿主新增字段时旧 bundle 会静默丢掉未知事件。标准作业数据还重复实现了官方 job-controller 已经提供的一部分。</p>
+    <p><strong>原因：</strong>SRC 模式不需要 codegen，构建链更短，fork 时项目已经这么写；插件还有官方 jobs 不覆盖的数据（结构化事件、工作流登记），需要自己的 RPC。代价是两端靠人同步字段。</p>
+    <p><strong>你该怎么做：</strong>标准作业数据用官方 <code>job.list</code> / <code>job.follow</code>。自定义数据优先走生成的 Typert 契约；只能用 SRC 时，把参数名当公开 API 冻结，客户端对每个响应做运行时校验，并给未知事件留 default 分支（<code>api.ts</code> 已经这么做）。</p>
+  </div>
+
+  <div class="ex" id="bp-4-subagents">
+    <p><strong>官方推荐：</strong>DSH 的子代理是 <code>ctx.subagents</code> 服务与 <code>subagent</code> 工具；配置字段应该用 DSH 的名字和语义。出处：<code>subsystems/subagent</code>。</p>
+    <p><strong>本项目做法：</strong><code>Config.subagents</code> 是 <code>Record&lt;string, SubagentConfig&gt;</code>（<code>src/index.ts:57-66, 95, 171-180</code>），字段是 Anthropic Agent SDK 的 <code>AgentDefinition</code>（<code>description</code> / <code>prompt</code> / <code>tools</code> / <code>model</code> / <code>maxTurns</code> / <code>background</code>），最后通过 <code>Options.agents</code> 传给 Claude Code（<code>buildQueryOptions</code> 里的 <code>options.agents = req.agents</code>）。</p>
+    <p><strong>差异：</strong>同名不同物。这个 <code>subagents</code> 是「Claude Code 进程里的子代理定义」，不是「DSH 会话里的子代理」。把两者混在一起，会以为配置了它就能用 DSH 的 subagent 生命周期、作业和会话隔离。</p>
+    <p><strong>原因：</strong>委派目标就是 Claude Code，子代理配置要透传给 SDK；作者沿用了 SDK 的字段名，没有在插件层改名。</p>
+    <p><strong>你该怎么做：</strong>看到 <code>subagents</code> 先看上下文。写 DSH 插件时，DSH 的子代理用 <code>ctx.subagents</code>；这个字段只在「透传给 Claude Code」时使用。文档里把两者分开写。</p>
+  </div>
+</div>
+
+<div class="block">
+  <h4>本节「不要照抄」</h4>
+  <ul>
+    <li>不要用 <code>sessionProjections.stateOf</code>。新代码用 <code>agent.model.current()</code>。</li>
+    <li>不要为了给面板读输出就复制一整套 <code>JobTracker</code> 文本环；官方 <code>readAt</code> 已经支持多读者和绝对偏移。</li>
+    <li>不要把 <code>tracker.ts:1-12</code> 的「kill 吞通知」当官方语义；当前 job-controller 的 kill 仍会通知 owner agent。</li>
+    <li>不要把 <code>@Remote</code> 的方法参数名当内部实现。它是 wire 契约，改名就是破坏兼容。</li>
+    <li>不要把客户端的类型手写一份还不校验。至少像 <code>api.ts</code> 那样逐字段收窄，并给未知事件留 default。</li>
+    <li>不要把 <code>config.subagents</code> 当成 DSH 的 <code>ctx.subagents</code>。同名不同物。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>完成标志</h4>
+  <p>你能画出「工具调用 → SDK → 事件 → tracker → remote → 面板」的完整链路，指出两条流（模型文本 / 面板事件）在哪里分开；能加一种事件并让它贯通类型、tracker、wire 校验和渲染；能说清 <code>stateOf</code>、<code>readAt</code>、<code>kill</code> 三处官方入口现在是什么。</p>
+</div>
+      </div>
+    </section>
+
+    <section id="stage-5" data-stage="5" data-path="full">
+      <div class="meta">
+        <span class="chip">阶段 5</span>
+        <span class="chip">10–12h</span>
+        <span class="chip hot">完整路径必修</span>
+        <span class="chip" data-stage-count>0 / 3 练习</span>
+      </div>
+      <h2 class="stage-title"><span class="n">STAGE 5</span> 客户端 React 与面板</h2>
+      <p class="goal">能读懂并小改客户端面板。</p>
+      <div class="path-notice">
+        <span>最短路径跳过这一阶段；完整路径必修。</span>
+        <button type="button" class="iconbtn" data-expand>仍然展开</button>
+      </div>
+      <!-- segments/stage-3-5.html 插入此处 -->
+      <div class="stage-body">
+<div class="block">
+  <h4>覆盖内容</h4>
+  <div>
+    <span class="chip" style="margin:0 6px 6px 0">client/types.ts</span>
+    <span class="chip" style="margin:0 6px 6px 0">api.ts 手写 RPC 校验</span>
+    <span class="chip" style="margin:0 6px 6px 0">OutputView.tsx</span>
+    <span class="chip" style="margin:0 6px 6px 0">EventView.tsx</span>
+    <span class="chip" style="margin:0 6px 6px 0">ClaudeCodeView.tsx</span>
+    <span class="chip" style="margin:0 6px 6px 0">client/index.ts</span>
+    <span class="chip" style="margin:0 6px 6px 0">conversation.view slot</span>
+    <span class="chip" style="margin:0 6px 6px 0">三路 job 源</span>
+    <span class="chip" style="margin:0 6px 6px 0">1 秒轮询</span>
+    <span class="chip" style="margin:0 6px 6px 0">styles.ts / md.ts（选读）</span>
+  </div>
+</div>
+
+<div class="block">
+  <h4>阅读材料</h4>
+  <ul>
+    <li><code>subsystems/client-modules</code>：bundle、manifest、<code>window.__DSH_BOOT__</code> 的加载路径。</li>
+    <li><code>subsystems/slots</code>：<code>slots.inject</code> / <code>slots.register</code> 的所有权与生命周期。</li>
+    <li><code>subsystems/conversation</code>、<code>subsystems/web-client</code>：会话视图、Remote 通信与生成的 client service face。</li>
+    <li>源码顺序：<code>src/client/types.ts</code> → <code>api.ts</code> → <code>OutputView.tsx</code> → <code>EventView.tsx</code> → <code>ClaudeCodeView.tsx</code> → <code>index.ts</code>。</li>
+    <li><code>src/client/styles.ts</code>、<code>md.ts</code>：选读。样式是纯 CSS 字符串，Markdown 渲染是展示细节。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>关键代码</h4>
+  <p>客户端入口只做三件事：装样式、取可选的 <code>jobs</code> 服务、把视图注册进 <code>conversation.view</code>。<code>slots.inject</code> 是必需的：bundle 可能早于 ui-conversation 声明该 slot 加载，裸 <code>register</code> 会抛错；<code>inject</code> 的回调在 owner 每次挂载时重新运行，owner 折叠时注册随之移除。</p>
+  <div class="code">
+    <div class="code-head"><span class="fname">src/client/index.ts:25-40</span></div>
+    <pre><code><span class="ln"><i>25</i>export function apply(ctx: Context): void {</span>
+<span class="ln"><i>26</i>  installStyles()</span>
+<span class="ln"><i>27</i>  // 0.2 moved the background-jobs roster into a first-class client service</span>
+<span class="ln"><i>28</i>  // (`ctx.jobs`, installed by ui-jobs) and dropped the session store's</span>
+<span class="ln"><i>29</i>  // `jobsBySession` mirror; the panel reads the service when it is there and</span>
+<span class="ln"><i>30</i>  // falls back to the mirror otherwise. Looked up rather than injected so the</span>
+<span class="ln"><i>31</i>  // bundle still loads on a 0.1.x client that has no such service.</span>
+<span class="ln"><i>32</i>  const jobs = ctx.get?.&lt;JobsClient&gt;('jobs')</span>
+<span class="ln"><i>33</i>  const ClaudeCodeView = createClaudeCodeView(createApi(ctx.connection), jobs)</span>
+<span class="ln"><i>34</i>  ctx.slots.inject('conversation.view', () => ctx.slots.register({</span>
+<span class="ln"><i>35</i>    name: 'conversation.view',</span>
+<span class="ln"><i>36</i>    id: 'claude-code',</span>
+<span class="ln"><i>37</i>    order: 100,</span>
+<span class="ln"><i>38</i>    label: () => t('view.label'),</span>
+<span class="ln"><i>39</i>  }, ClaudeCodeView))</span>
+<span class="ln"><i>40</i>}</span></code></pre>
+  </div>
+  <p><code>ctx.get('jobs')</code> 是软查找：0.1.x 客户端没有这个服务时返回 <code>undefined</code>，面板走回退路径。<code>connection</code> 通过 <code>inject</code> 声明，是硬依赖。</p>
+  <p>视图层把三路 job 源合并成一个数组，再去重、排序、分组。一个 Claude 会话一个 tab，不是一次调用一个 tab。</p>
+  <div class="code">
+    <div class="code-head"><span class="fname">src/client/ClaudeCodeView.tsx:231-242</span></div>
+    <pre><code><span class="ln"><i>231</i>    const native = (jobs?.state ?? NO_ROSTER)((state) =&gt; state.rows[sessionId])</span>
+<span class="ln"><i>232</i>    const mirrored = useSessions((state) =&gt; state.jobsBySession?.[sessionId]) ?? NO_JOBS</span>
+<span class="ln"><i>233</i>    const panel = panelOf(sessionId)</span>
+<span class="ln"><i>234</i>    const [tracked, setTracked] = useState&lt;readonly JobView[]&gt;(() =&gt; panel.rows ?? NO_JOBS)</span>
+<span class="ln"><i>235</i>    // Merged, not either/or: the plugin's own tracker list is the one source</span>
+<span class="ln"><i>236</i>    // that cannot lag a job's start, so a running delegation is listed — and its</span>
+<span class="ln"><i>237</i>    // live reads begin — within one poll even when the harness roster is empty</span>
+<span class="ln"><i>238</i>    // or late.</span>
+<span class="ln"><i>239</i>    const rows = useMemo(</span>
+<span class="ln"><i>240</i>      () =&gt; ordered(mergeRows(native ?? NO_JOBS, mirrored, tracked).filter((job) =&gt; PANEL_KINDS.includes(job.kind))),</span>
+<span class="ln"><i>241</i>      [native, mirrored, tracked],</span>
+<span class="ln"><i>242</i>    )</span></code></pre>
+  </div>
+  <p>三路分别是：0.2 的 <code>ctx.jobs</code> 名册（<code>jobs.state</code>）、0.1.x 的 <code>useSessions</code> 镜像（<code>jobsBySession</code>）、插件自己的 <code>listJobs</code> 轮询结果（<code>tracked</code>）。<code>mergeRows</code> 按 id 去重，先到的那份留下；<code>ordered</code> 把 live 行排在前面、已结算行按时间排；<code>groupsOf</code> 再按 <code>claudeSessionId</code> 分组，组内按开始时间排。</p>
+  <p>轮询分两档：roster 2 秒（<code>TRACKED_POLL_MS</code>，<code>:48</code>），选中任务的 live 输出 1 秒（<code>POLL_MS</code>，<code>:81</code>）。live 轮询只在面板挂载且选中会话还有 running 作业时开；状态变成终态会再读一次，然后停表。effect 的 cleanup 同时 abort 读取和 <code>clearInterval</code>（<code>:381-441</code>）。</p>
+  <p>harness 会卸载非活动视图，组件 state 会丢；所以面板把选中任务、已读偏移、输出缓存放在模块级 <code>panelOf(sessionId)</code> 里（<code>:17-20, :83-84</code>）。这是本项目面对的视图生命周期，不是所有客户端插件的通用做法。</p>
+</div>
+
+<div class="block">
+  <h4>练习</h4>
+  <p class="placeholder-note">练习前：<code>git switch -c practice/stage-5</code>；练完切回 <code>main</code>。这组练习只在完整路径必做。</p>
+
+  <div class="ex" data-ex="5.1">
+    <label class="ex-head">
+      <input type="checkbox" data-check="5.1">
+      <span class="t"><span class="ex-id">5.1</span>给任务列表加状态筛选</span>
+    </label>
+    <p>在 <code>ClaudeCodeView</code> 加一个状态筛选控件（例如只看 running / failed），用 <code>useMemo</code> 过滤三路合并后的数组。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li>三路合并结果是 <code>rows</code>（<code>ClaudeCodeView.tsx:239-242</code>），在它后面加过滤，不要改数据源。</li>
+        <li>依赖数组要包含筛选状态和 <code>rows</code>；漏掉一个，切换筛选不更新。</li>
+        <li>只改渲染。不要动 <code>panel</code> 缓存、roster 轮询和 live 轮询。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/client/ClaudeCodeView.tsx:226-291</code> · <code>src/client/types.ts:11</code></div>
+    <div class="accept">验收：筛选可切换；选中任务被过滤掉时回退到默认项；1 秒 live 轮询不受影响。</div>
+  </div>
+
+  <div class="ex" data-ex="5.2">
+    <label class="ex-head">
+      <input type="checkbox" data-check="5.2">
+      <span class="t"><span class="ex-id">5.2</span>把 installStyles() 包进 ctx.effect</span>
+    </label>
+    <p>给 <code>styles.ts</code> 加 <code>removeStyles()</code>，在 <code>client/index.ts</code> 用 <code>ctx.effect</code> 注册清理。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li><code>ctx.effect</code> 的 cleanup 在卸载 / HMR 时执行；<code>installStyles</code> 是 Cordis 未管理的 DOM 资源。</li>
+        <li>当前 <code>installStyles</code> 用 <code>#STYLE_ID</code> 去重，remove 时按同一个 id 删。</li>
+        <li>保留 <code>typeof document === 'undefined'</code> 的 guard；非浏览器环境不能碰 DOM。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/client/styles.ts:882-891</code> · <code>src/client/index.ts:25-26</code> · 09 票 D11</div>
+    <div class="accept">验收：卸载后 <code>&lt;style&gt;</code> 被移除；HMR 重载不重复注入；面板样式在挂载期间正常。</div>
+  </div>
+
+  <div class="ex" data-ex="5.3">
+    <label class="ex-head">
+      <input type="checkbox" data-check="5.3">
+      <span class="t"><span class="ex-id">5.3</span>加一个 StatusBadge 组件</span>
+    </label>
+    <p>写一个轻量 <code>StatusBadge</code>，显示当前选中任务的状态；从现有 props 或 <code>api</code> 取数，接入 <code>ClaudeCodeView</code> 的 tab strip 或详情区。</p>
+    <details><summary>思路提示（3 条）</summary>
+      <ul>
+        <li><code>client/types.ts:11</code> 的 <code>JobStatus</code> 是唯一状态源；文案走 <code>format.ts</code> 的 <code>statusLabel</code>。</li>
+        <li>先只读 <code>currentJob.status</code>，不要为徽标新开 RPC。</li>
+        <li>样式类加进 <code>styles.ts</code> 的 CSS 字符串，类名用 <code>ccp-</code> 前缀。</li>
+      </ul>
+    </details>
+    <div class="refs">参考：<code>src/client/types.ts:11</code> · <code>src/client/ClaudeCodeView.tsx:331-337</code> · <code>src/client/styles.ts</code></div>
+    <div class="accept">验收：徽标随选中任务更新；状态文案走 <code>statusLabel</code>；切换视图和卸载时无报错。</div>
+  </div>
+</div>
+
+<div class="block">
+  <h4>自测</h4>
+
+  <div class="quiz">
+    <div><strong>Q1.</strong> 面板的三路 job 源分别是什么？为什么要合并？</div>
+    <details><summary>参考答案</summary><div>0.2 的 <code>ctx.jobs</code> 名册（<code>jobs.state</code>）、0.1.x 的 <code>useSessions</code> 镜像（<code>jobsBySession</code>）、插件自己的 <code>listJobs</code> 轮询结果（<code>tracked</code>）。合并是为了同时兼容 0.1.x 和 0.2，并且自己的 tracker 不会漏掉刚启动的作业。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q2.</strong> 1 秒轮询什么时候开？什么时候关？</div>
+    <details><summary>参考答案</summary><div>只在面板挂载、选中会话还有 running 作业时开；作业进入终态后触发一次最终读取，然后不再开定时器。effect 的 cleanup 会 abort 读取并 <code>clearInterval</code>。<code>ClaudeCodeView.tsx:381-441</code>。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q3.</strong> 当前 <code>installStyles()</code> 的问题是什么？怎么修？</div>
+    <details><summary>参考答案</summary><div>它只注入 <code>&lt;style&gt;</code>，没有 remove；卸载或 HMR 后标签留在 <code>&lt;head&gt;</code>，HMR 时旧内容也不会更新。加 <code>removeStyles()</code>，用 <code>ctx.effect(() =&gt; { installStyles(); return removeStyles })</code> 注册清理。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q4.</strong> 为什么 <code>slots.register</code> 要包在 <code>slots.inject</code> 里？</div>
+    <details><summary>参考答案</summary><div>bundle 可能早于 ui-conversation 声明 <code>conversation.view</code> 加载，裸 <code>register</code> 会抛错。<code>inject</code> 等 owner 声明后运行回调，owner 折叠时注册随 effect 移除，重新挂载时再运行。</div></details>
+  </div>
+
+  <div class="quiz">
+    <div><strong>Q5.</strong> 面板状态为什么放在模块级缓存，而不是组件 state？</div>
+    <details><summary>参考答案</summary><div>harness 会卸载非活动视图，组件 state 在切 tab 时丢失；模块级 <code>panelOf(sessionId)</code> 保留选中任务、已读偏移和输出缓存，切回来能接着读。这是本项目的视图生命周期约束，不是通用模式。</div></details>
+  </div>
+</div>
+
+<div class="block">
+  <h4>官方推荐 vs 本项目做法</h4>
+
+  <div class="ex" id="bp-5-styles">
+    <p><strong>官方推荐：</strong>Cordis 未管理的资源（定时器、连接、watcher、DOM 副作用）包在 <code>ctx.effect()</code> 里，并返回 disposer；卸载和 HMR 时都会执行。出处：<code>cordis-tutorial/02-lifecycle-and-effects</code>。</p>
+    <p><strong>本项目做法：</strong><code>client/index.ts:26</code> 直接调 <code>installStyles()</code>；<code>styles.ts:882-891</code> 只检查 <code>#STYLE_ID</code> 是否已存在，然后 append，没有 remove 函数。</p>
+    <p><strong>差异：</strong>卸载后 <code>&lt;style&gt;</code> 留在 <code>&lt;head&gt;</code>；HMR 时靠 id 去重，旧标签挡住新内容，样式更新不会生效。</p>
+    <p><strong>原因：</strong>一次性注入实现最简单；开发时全页刷新居多，HMR 的样式残留不容易暴露。</p>
+    <p><strong>你该怎么做：</strong>照练习 5.2 加 <code>removeStyles()</code>，用 <code>ctx.effect</code> 返回 cleanup。不要复制「只 install 不 cleanup」的写法；在卸载时释放自己申请的资源。</p>
+  </div>
+
+  <div class="ex" id="bp-5-jobsources">
+    <p><strong>官方推荐：</strong>客户端的作业数据走生成的 Remote 流（<code>job.list</code> / <code>job.follow</code>）和 client model：model 维护稳定快照，UI 订阅，不在组件里复制 transport state，也不轮询。出处：<code>subsystems/jobs</code>、<code>subsystems/web-client</code>。</p>
+    <p><strong>本项目做法：</strong><code>ClaudeCodeView</code> 合并三路源：<code>jobs.state</code>、<code>useSessions.jobsBySession</code>、自己的 <code>listJobs</code> 轮询（2 秒）；选中任务 live 时再 1 秒轮询 <code>readEvents</code> / <code>readOutput</code>（<code>:231-242, :279, :381-441</code>）。</p>
+    <p><strong>差异：</strong>官方一套推送源加一个 client model；本项目三套源去重，加两档轮询，transport state 直接进组件。兼容路径多了，代码也就多了。</p>
+    <p><strong>原因：</strong>要同时兼容 0.1.x（镜像）和 0.2（jobs 服务）；自己的 tracker 是唯一不会漏掉刚启动作业的源；官方 job 流没有结构化事件，live 文本也没有对应的 Client→Host 推送，只能轮询。harness 卸载视图又逼着把状态搬到模块级缓存。</p>
+    <p><strong>你该怎么做：</strong>只面向一个 DSH 版本时，用生成的 jobs client model 和 <code>job.follow</code>，不要抄三路合并。必须轮询时，照这里的生命周期：只在挂载且任务运行时开表，cleanup 清掉，状态不要只放组件 state，卸载时会丢。先确认官方有没有推送，再决定轮询。</p>
+  </div>
+
+  <div class="ex" id="bp-5-client-inject">
+    <p><strong>官方推荐：</strong><code>package.json</code> 的 <code>dsh.client.inject</code> 列出客户端 bundle 依赖的包行，清单应与实际运行时一致。出处：<code>subsystems/client-modules</code> 的 <code>WebBootEntry.inject</code>。</p>
+    <p><strong>本项目做法：</strong><code>package.json</code> 里仍列 <code>@deepseek-ai/dsh-client-runtime</code>；0.2.2-rc.5 已经没有这个包（09 票灰色地带）。硬依赖在 <code>src/client/index.ts:19</code> 的 <code>inject = ['slots', 'connection']</code>。</p>
+    <p><strong>差异：</strong>清单里有一个不存在的包。它当前不影响加载（09 票判断为信息性字段），但会让读者以为要装它，也会让版本升级时误判依赖。</p>
+    <p><strong>原因：</strong>从 0.1.x fork 时留下；0.2 拆包 / 改名后没同步。代码能跑，清单就一直没改。</p>
+    <p><strong>你该怎么做：</strong>以 <code>inject</code> 和实际 import 为准。自己插件只声明用到的包，发布前对照目标 DSH 版本的文件清单；不要照抄这串旧包名。</p>
+  </div>
+</div>
+
+<div class="block">
+  <h4>本节「不要照抄」</h4>
+  <ul>
+    <li>不要照抄 <code>installStyles()</code> 这种无 cleanup 的一次性副作用。</li>
+    <li>不要在没有 0.1.x 兼容需求时合并三路 job 源。</li>
+    <li>不要在官方有推送 / 流的地方自己开 1 秒轮询。先查 <code>job.follow</code>。</li>
+    <li>不要把 <code>dsh.client.inject</code> 里的旧包名当真实依赖清单。</li>
+    <li>不要把模块级面板缓存当通用模式；先确认你的视图会不会被 harness 卸载。</li>
+    <li>不要在客户端手写一份宿主类型却不校验；照 <code>api.ts</code> 的做法逐字段收窄。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>完成标志</h4>
+  <p>面板上出现一个由你添加的可见元素，并且它能读到宿主数据；你能说清三路 job 源各自解决什么问题、1 秒轮询的开关条件、<code>installStyles</code> 少了哪一步 cleanup；卸载后没有样式残留。</p>
+</div>
+      </div>
+    </section>
+
+    <section id="stage-6" data-stage="6" data-path="both">
+      <div class="meta">
+        <span class="chip">阶段 6</span>
+        <span class="chip">4–6h</span>
+        <span class="chip">两条路径都走</span>
+        <span class="chip" data-stage-count>0 / 3 练习</span>
+      </div>
+      <h2 class="stage-title"><span class="n">STAGE 6</span> 构建、打包、安装、调试</h2>
+      <p class="goal">能自己构建、安装、调试插件。</p>
+      <!-- segments/stage-6-7.html 插入此处 -->
+      <div class="stage-body">
+<div class="block">
+  <h4>覆盖内容</h4>
+  <p>这一节处理构建、打包和安装：宿主侧和客户端侧分开构建，最后用产物断言兜底；安装和调试都用 <code>dsh plugin</code> 和 profile 完成。</p>
+  <div style="display:flex;flex-wrap:wrap;gap:6px">
+    <span class="chip">两套 tsconfig</span>
+    <span class="chip">tsc 宿主构建</span>
+    <span class="chip">tsc 客户端声明</span>
+    <span class="chip">esbuild 客户端 bundle</span>
+    <span class="chip">assert-artifacts</span>
+    <span class="chip">package.json 的 dsh / exports / files</span>
+    <span class="chip">cordis.patch.yml</span>
+    <span class="chip">peer 版本兼容</span>
+    <span class="chip">本地安装与调试</span>
+  </div>
+</div>
+
+<div class="block">
+  <h4>阅读材料</h4>
+  <ul>
+    <li><code>subsystems/core</code>：插件加载、fiber 生命周期、服务依赖。</li>
+    <li><code>config-catalog</code>：配置项、patch、profile 的叠加顺序。</li>
+    <li><code>cordis-tutorial/06</code>：打包与发布。</li>
+    <li><code>README.md</code> 第 11 节「运行机制」：本仓库的构建表与客户端 bundle 约束。</li>
+    <li>源码：<code>package.json</code>、<code>tsconfig.json</code>、<code>tsconfig.client.json</code>、<code>scripts/build-client.mjs</code>、<code>scripts/assert-artifacts.mjs</code>。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>关键代码</h4>
+  <p><code>package.json</code> 决定三件事：装什么、怎么被加载、发布哪些文件。下面只留相关字段。</p>
+
+  <div class="code" style="background:var(--code-bg);border:1px solid var(--line);border-radius:var(--radius);overflow:auto;margin:10px 0">
+    <div class="code-head" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)"><span class="fname" style="font-family:monospace">package.json（节选）</span></div>
+    <pre style="margin:0;padding:10px;overflow:auto;font-size:12.5px;line-height:1.55"><code>{
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    }
+  },
+  "files": [
+    "lib",
+    "lib/client.js",
+    "cordis.patch.yml",
+    "CHANGELOG.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  }
+}</code></pre>
+  </div>
+
+  <p><code>dsh.bundle.patch</code> 指向的 <code>cordis.patch.yml</code> 是安装时的接线清单：<code>dsh plugin add</code> 把它并进 profile 的 <code>dsh.profile.bundles</code>，<code>id</code> 要用稳定字符串。</p>
+
+  <p>两套 tsconfig 服务于两个运行环境，不要合成一套。</p>
+  <table style="border-collapse:collapse;width:100%;font-size:13px;margin:8px 0 12px">
+    <thead>
+      <tr>
+        <th style="text-align:left;border-bottom:1px solid var(--line);padding:6px 8px">配置</th>
+        <th style="text-align:left;border-bottom:1px solid var(--line);padding:6px 8px">关键项</th>
+        <th style="text-align:left;border-bottom:1px solid var(--line);padding:6px 8px">产出</th>
+        <th style="text-align:left;border-bottom:1px solid var(--line);padding:6px 8px">用途</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="border-bottom:1px solid var(--line);padding:6px 8px"><code>tsconfig.json</code></td>
+        <td style="border-bottom:1px solid var(--line);padding:6px 8px"><code>module: NodeNext</code>、<code>lib: ES2022</code>、<code>outDir: lib</code>、排除 <code>src/client</code></td>
+        <td style="border-bottom:1px solid var(--line);padding:6px 8px"><code>lib/*.js</code> + <code>lib/types/**</code></td>
+        <td style="border-bottom:1px solid var(--line);padding:6px 8px">宿主侧，Node 直接加载</td>
+      </tr>
+      <tr>
+        <td style="border-bottom:1px solid var(--line);padding:6px 8px"><code>tsconfig.client.json</code></td>
+        <td style="border-bottom:1px solid var(--line);padding:6px 8px"><code>module: ESNext</code>、<code>moduleResolution: Bundler</code>、<code>lib: ES2022 + DOM</code>、<code>jsx: react-jsx</code>、<code>emitDeclarationOnly: true</code></td>
+        <td style="border-bottom:1px solid var(--line);padding:6px 8px">仅 <code>lib/types/client/**</code></td>
+        <td style="border-bottom:1px solid var(--line);padding:6px 8px">给 esbuild 打包的客户端类型</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p><code>npm run build</code> 的顺序：<code>tsc -p tsconfig.json</code> → <code>tsc -p tsconfig.client.json</code> → <code>node scripts/build-client.mjs</code> → <code>node scripts/assert-artifacts.mjs</code>。前两步任何一步非零退出，后面都不会跑。</p>
+
+  <p>客户端 bundle 的加载方式与普通库不同。DSH shell 按 classic script 加载它，整个文件必须是一次 <code>window.__ModuleLoader__.load({ id, factory })</code> 调用，<code>id</code> 必须等于包名。<code>factory(require)</code> 里只有 shell 的 seed 模块可解析，其余依赖必须打进产物。esbuild 生成 CJS factory，banner/footer 负责套外壳。</p>
+
+  <div class="code" style="background:var(--code-bg);border:1px solid var(--line);border-radius:var(--radius);overflow:auto;margin:10px 0">
+    <div class="code-head" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)"><span class="fname" style="font-family:monospace">scripts/build-client.mjs（节选）</span></div>
+    <pre style="margin:0;padding:10px;overflow:auto;font-size:12.5px;line-height:1.55"><code>const SEED_MODULES = [
+  'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client',
+  '@deepseek-ai/cordis', '@deepseek-ai/dsh-client-ui-slots',
+  // ... 其余由 shell 提供的模块
+]
+
+const banner = [
+  `window.__ModuleLoader__.load({`,
+  `\tid: ${JSON.stringify(pkg.name)},`,
+  `\tfactory: (require) =&gt; {`,
+  `var module = { exports: {} };`,
+  `var exports = module.exports;`,
+  '',
+].join('\n')
+
+await build({
+  entryPoints: [join(root, 'src', 'client', 'index.ts')],
+  outfile,
+  bundle: true,
+  format: 'cjs',
+  platform: 'browser',
+  external: SEED_MODULES,
+  banner: { js: banner },
+  footer: { js: footer },
+})
+
+// 产物必须满足 shell 的加载契约
+if (!text.startsWith('window.__ModuleLoader__.load({')) throw new Error(...)
+if (!text.includes(`id: ${JSON.stringify(pkg.name)}`)) throw new Error(...)</code></pre>
+  </div>
+</div>
+
+<div class="block">
+  <h4>三个实测坑</h4>
+  <ol>
+    <li><strong>全局 TypeScript 6 与本项目 <code>^5.4.5</code> 不兼容。</strong>本机全局 <code>typescript</code> 是 6.0.3；TS 6 把 <code>baseUrl</code> 的弃用从警告升级成 error（TS5101），<code>tsc</code> 直接退出。构建和类型检查都用项目自己的 <code>node_modules/typescript</code>：<code>npm run build</code>、<code>npm run typecheck</code> 会自动用本地版本，不要直接调用全局 <code>tsc</code>。</li>
+    <li><strong><code>tsc</code> 类型报错仍会产出 JS。</strong><code>noEmitOnError</code> 默认是 false，所以 <code>lib/index.js</code> 存在不代表编译成功，<code>assert-artifacts</code> 通过也不代表类型正确——它只查文件是否存在、大小是否为 0。判断标准是 <code>tsc</code> 的退出码和错误输出；发布前单独跑一次 <code>npm run typecheck</code>。</li>
+    <li><strong>peer 范围是强制检查，不是文档约定。</strong><code>dsh plugin add</code> 会读 <code>peerDependencies</code>；存在 <code>engines.dsh</code> 时以它为准。不兼容会直接拒绝安装，并打印 <code>allow-version ... --accept-risk</code> 豁免命令，错误信息写明可能崩溃或丢数据。实测把 peer 写成 <code>&gt;=99.0.0</code>，安装被拒。<code>devDependencies</code> 不参与兼容判断；<code>peerDependenciesMeta.optional</code> 的 peer（本项目的 <code>react</code> 与客户端 primitives）缺失时不阻塞。</li>
+  </ol>
+  <p>版本比较把 prerelease 纳入，<code>0.2.2-rc.5</code> 按实际次序比较；不要直接套 npm 默认的 prerelease 排除规则。细节见练习 6.2。</p>
+</div>
+
+<div class="block">
+  <h4>安装与调试</h4>
+  <p>构建成功后，用测试 profile 安装一次。按下面四条命令走一遍，能区分配置层、模块加载和运行期的问题。</p>
+  <div class="code" style="background:var(--code-bg);border:1px solid var(--line);border-radius:var(--radius);overflow:auto;margin:10px 0">
+    <div class="code-head" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)"><span class="fname" style="font-family:monospace">bash</span></div>
+    <pre style="margin:0;padding:10px;overflow:auto;font-size:12.5px;line-height:1.55"><code>npm run build
+dsh plugin --profile smoke add E:/path/to/your-plugin
+dsh --profile smoke --dump-config
+dsh --profile smoke</code></pre>
+  </div>
+  <p><code>--dump-config</code> 只证明配置层组合，不 import 模块。要证明模块能加载，必须实际启动一次。新 profile 默认只有 <code>@deepseek-ai/dsh-base</code>，没有 app；直接启动会静默挂起。先把 <code>@deepseek-ai/dsh-headless</code>（或 web）加进 <code>dsh.profile.bundles</code>，再启动。</p>
+</div>
+
+<div class="block">
+  <h4>练习</h4>
+  <p class="placeholder-note">练习前：<code>git switch -c practice/stage-6</code>；练完切回 <code>main</code>。</p>
+
+  <div class="ex" data-ex="6.1">
+    <label class="ex-head"><input type="checkbox" data-check="6.1"><span class="t"><span class="ex-id">6.1</span>新增模块并更新产物断言</span></label>
+    <p>加 <code>src/version.ts</code> 导出 <code>PLUGIN_VERSION</code>，在 <code>src/index.ts</code> 引用；把新产物加进 <code>scripts/assert-artifacts.mjs</code>；跑 <code>npm run build</code>。</p>
+    <details style="margin:8px 0 0 26px">
+      <summary style="cursor:pointer;color:var(--accent);font-size:13px">思路提示（3 条）</summary>
+      <ul>
+        <li><code>tsconfig.json</code> 的 <code>include: ["src"]</code> 会自动带上新文件；漏的是手写清单。</li>
+        <li><code>assert-artifacts.mjs</code> 是手写数组，新增宿主模块要加一行。</li>
+        <li>客户端新增入口（不是被 <code>src/client/index.ts</code> import 的模块）还要改 <code>tsconfig.client.json</code> 的 <code>include</code> 与 <code>build-client.mjs</code> 的入口；只加宿主文件不用动客户端。</li>
+      </ul>
+    </details>
+    <div class="refs" style="font-size:12.5px;color:var(--muted);margin:6px 0 0 26px">参考：<code>scripts/assert-artifacts.mjs</code> · <code>tsconfig.json</code> · <code>tsconfig.client.json</code></div>
+    <div class="accept" style="margin:8px 0 0 26px;font-size:13px;color:var(--muted)">验收：<code>npm run build</code> 通过；断言输出包含新产物；手动删掉新产物后构建会失败。</div>
+  </div>
+
+  <div class="ex" data-ex="6.2">
+    <label class="ex-head"><input type="checkbox" data-check="6.2"><span class="t"><span class="ex-id">6.2</span>改版本范围并判断兼容</span></label>
+    <p>把 peer 范围改成 <code>&gt;=0.2.0 &lt;0.3.0</code>，判断本机 <code>dsh@0.2.2-rc.5</code> 是否仍兼容；写出依据后再改回原范围。</p>
+    <details style="margin:8px 0 0 26px">
+      <summary style="cursor:pointer;color:var(--accent);font-size:13px">思路提示（3 条）</summary>
+      <ul>
+        <li>先看 <code>package.json</code> 的 <code>peerDependencies</code>，再看 <code>peerDependenciesMeta</code> 里哪些是 optional。</li>
+        <li><code>engines.dsh</code> 存在时以它为准；<code>devDependencies</code> 不参与。</li>
+        <li>版本比较包含 prerelease；<code>0.2.2-rc.5</code> 按实际次序和 <code>&gt;=0.2.0 &lt;0.3.0</code> 比，不要直接用 npm 默认的 prerelease 排除规则。</li>
+      </ul>
+    </details>
+    <div class="refs" style="font-size:12.5px;color:var(--muted);margin:6px 0 0 26px">参考：<code>package.json</code> · 01 票的版本规则</div>
+    <div class="accept" style="margin:8px 0 0 26px;font-size:13px;color:var(--muted)">验收：写出判断依据；能解释 <code>0.2.2-rc.5</code> 为什么在范围内；改回原范围后安装仍然成功。</div>
+  </div>
+
+  <div class="ex" data-ex="6.3">
+    <label class="ex-head"><input type="checkbox" data-check="6.3"><span class="t"><span class="ex-id">6.3</span>模拟一次安装与调试</span></label>
+    <p>用测试 profile 安装本地构建的插件，故意写错一个 patch <code>id</code>，用 <code>--dump-config</code> 和启动日志定位并修复。</p>
+    <details style="margin:8px 0 0 26px">
+      <summary style="cursor:pointer;color:var(--accent);font-size:13px">思路提示（3 条）</summary>
+      <ul>
+        <li>先看 <code>--dump-config</code> 里条目是否出现；不出现先查 <code>dsh.bundle.patch</code> 与 profile 的 <code>bundles</code>。</li>
+        <li>出现条目但启动失败，看启动日志里缺失的模块或服务名；<code>id</code> 不稳定会导致编辑配置时重挂。</li>
+        <li>本地路径安装是 <code>link:</code> 依赖，不联网；改完源码重新构建后重启即可，不必重新安装。</li>
+      </ul>
+    </details>
+    <div class="refs" style="font-size:12.5px;color:var(--muted);margin:6px 0 0 26px">参考：<code>~/.dsh/profiles/&lt;name&gt;</code> · 01 票的坑清单</div>
+    <div class="accept" style="margin:8px 0 0 26px;font-size:13px;color:var(--muted)">验收：能定位并修复；能说清「dump-config 通过」和「模块加载成功」的区别。</div>
+  </div>
+</div>
+
+<div class="block">
+  <h4>自测</h4>
+  <div class="quiz" style="border-left:3px solid var(--accent);padding:2px 0 2px 14px;margin:12px 0">
+    <div><strong>Q1.</strong> <code>lib/index.js</code> 已经生成，能说明 <code>tsc</code> 编译成功吗？</div>
+    <details style="margin-top:4px"><summary style="cursor:pointer;font-size:13px;color:var(--accent)">参考答案</summary><div>不能。<code>noEmitOnError</code> 默认 false，类型错误仍会产出 JS。看退出码和错误输出；发布前跑 <code>npm run typecheck</code>。<code>assert-artifacts</code> 只查文件存在和大小，不查类型。</div></details>
+  </div>
+  <div class="quiz" style="border-left:3px solid var(--accent);padding:2px 0 2px 14px;margin:12px 0">
+    <div><strong>Q2.</strong> 为什么宿主和客户端要两套 tsconfig？</div>
+    <details style="margin-top:4px"><summary style="cursor:pointer;font-size:13px;color:var(--accent)">参考答案</summary><div>运行环境不同。宿主跑在 Node，用 <code>NodeNext</code>、<code>ES2022</code>、无 DOM；客户端跑在浏览器，用 <code>ESNext + Bundler</code>、DOM、<code>react-jsx</code>。客户端 tsc 只出声明，JS 交给 esbuild 打成单个 classic script。混用会让 DOM 类型漏进宿主，或让客户端拿到 Node 类型。</div></details>
+  </div>
+  <div class="quiz" style="border-left:3px solid var(--accent);padding:2px 0 2px 14px;margin:12px 0">
+    <div><strong>Q3.</strong> <code>files</code> 里漏了 <code>cordis.patch.yml</code> 会怎样？</div>
+    <details style="margin-top:4px"><summary style="cursor:pointer;font-size:13px;color:var(--accent)">参考答案</summary><div>npm 包不带这个文件，<code>dsh.bundle.patch</code> 指向的文件不存在；<code>dsh plugin add</code> 会把包当普通依赖安装并警告，插件不会被自动接线。安装后 <code>--dump-config</code> 里看不到条目。</div></details>
+  </div>
+  <div class="quiz" style="border-left:3px solid var(--accent);padding:2px 0 2px 14px;margin:12px 0">
+    <div><strong>Q4.</strong> <code>dsh plugin add</code> 遇到不兼容的 peer 会警告后继续吗？</div>
+    <details style="margin-top:4px"><summary style="cursor:pointer;font-size:13px;color:var(--accent)">参考答案</summary><div>不会。peer 是强制检查，安装直接失败，并打印 <code>allow-version ... --accept-risk</code> 豁免命令。只有明确知道风险时才用豁免。</div></details>
+  </div>
+</div>
+
+<div class="block">
+  <h4>本节最佳实践</h4>
+  <ul>
+    <li>构建链 fail fast：产物断言放最后，缺文件直接非零退出；不要用 <code>|| true</code> 吞掉。</li>
+    <li><code>files</code> 用白名单，只发运行所需；<code>exports</code> 同时给 <code>types</code> 和 <code>default</code>，客户端子路径单独列。</li>
+    <li>版本兼容只看 <code>engines.dsh</code>（存在时）和 <code>@deepseek-ai/dsh*</code> peer；prerelease 纳入比较；不要用 devDependencies 判断。</li>
+    <li>类型检查和构建分开跑：<code>npm run typecheck</code> 不产 JS，<code>npm run build</code> 产 JS；CI 两个都跑。</li>
+    <li>安装验证用全新 profile：先 <code>--dump-config</code> 确认配置层，再 boot 确认模块加载；本地路径安装不联网，适合反复试。</li>
+    <li>客户端 bundle 的 <code>id</code> 必须等于包名，外部依赖只能来自 shell seed 表；构建脚本已经断言，别用 <code>--external:*</code> 绕过。</li>
+  </ul>
+</div>
+
+<div class="block">
+  <h4>完成标志</h4>
+  <p><code>npm run build</code> 通过，<code>assert-artifacts</code> 覆盖新增模块；本地 <code>dsh plugin --profile &lt;test&gt; add &lt;path&gt;</code> 成功，<code>--dump-config</code> 出现条目，启动 profile 能加载；能复现并规避三个坑：全局 TS6、<code>tsc</code> 报错仍产 JS、peer 强制检查。</p>
+</div>
+      </div>
+    </section>
+
+    <section id="stage-7" data-stage="7" data-path="both">
+      <div class="meta">
+        <span class="chip">阶段 7</span>
+        <span class="chip">12–16h</span>
+        <span class="chip">两条路径都走</span>
+        <span class="chip" data-stage-count>0 / 3 练习</span>
+      </div>
+      <h2 class="stage-title"><span class="n">STAGE 7</span> 毕业项目</h2>
+      <p class="goal">独立开发一个简单插件，按官方最佳实践写。</p>
+      <!-- segments/stage-6-7.html 插入此处 -->
+      <div class="stage-body">
+<div class="block">
+  <h4>怎么选</h4>
+  <p>三张卡对应三种插件形态：纯宿主工具、宿主加子进程与作业、宿主加客户端 UI。按你想练的能力选，不要按小时数选。选定后另外两张折叠；选择存在 <code>dsh-learn:capstone</code>，刷新页面仍然保留。</p>
+  <p>三张卡都要满足同一组要求：能安装、能加载、有 README、有一个可演示行为、能解释取舍。统一验收在卡片下方，项目做完再逐条过。</p>
+</div>
+
+<div class="block">
+  <h4>三张规格卡</h4>
+  <div data-capstone-group>
+    <div style="display:grid;gap:10px">
+
+      <article class="ex capstone-card" data-capstone="A" style="margin:0">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+          <div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+              <span class="chip">项目 A</span>
+              <span class="chip">12–16h</span>
+              <span class="chip">推荐默认</span>
+            </div>
+            <h3 style="font-size:17px;margin:0">文本统计工具插件</h3>
+          </div>
+          <button type="button" class="iconbtn" data-capstone-pick="A" aria-pressed="false">选这个</button>
+        </div>
+        <div class="cap-body" style="margin-top:10px">
+          <h4>必须实现</h4>
+          <ol>
+            <li>注册 <code>text_stats</code> 工具，参数 <code>{ text: string, maxBytes?: number }</code>，返回字符数、词数、行数、最长行。</li>
+            <li>用 schemastery 做参数校验；<code>maxBytes</code> 超限返回清晰错误。</li>
+            <li><code>Config</code> 加 <code>maxBytes</code> 默认值 10000。</li>
+            <li>构建 <code>lib/index.js</code>，通过 <code>dsh plugin add</code> 装进测试 profile。</li>
+            <li>README：安装、配置、调用示例、已知限制。</li>
+          </ol>
+          <h4>可选加分</h4>
+          <ul>
+            <li>客户端面板显示最近 10 次统计。</li>
+            <li>运行时技能，教模型何时使用这个工具。</li>
+            <li>用 <code>ctx.jobs</code> 做后台大文件统计。</li>
+          </ul>
+          <h4>文件清单</h4>
+          <ul>
+            <li><code>package.json</code></li>
+            <li><code>tsconfig.json</code></li>
+            <li><code>cordis.patch.yml</code></li>
+            <li><code>src/index.ts</code></li>
+            <li><code>README.md</code></li>
+          </ul>
+          <h4>验收清单</h4>
+          <ul>
+            <li>dsh 能调用并返回正确统计。</li>
+            <li>超限返回清晰错误。</li>
+            <li>README 能照做复现。</li>
+            <li>能解释 <code>defineTool</code> 四段式。</li>
+            <li>参数与输出 schema 完整。</li>
+          </ul>
+          <p style="font-size:13px;color:var(--muted);margin:8px 0 0">预估 12–16h。对应阶段：0、2、3、6、7；可选 5。</p>
+        </div>
+      </article>
+
+      <article class="ex capstone-card" data-capstone="B" style="margin:0">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+          <div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+              <span class="chip">项目 B</span>
+              <span class="chip">16–20h</span>
+            </div>
+            <h3 style="font-size:17px;margin:0">外部 CLI 委托插件</h3>
+          </div>
+          <button type="button" class="iconbtn" data-capstone-pick="B" aria-pressed="false">选这个</button>
+        </div>
+        <div class="cap-body" style="margin-top:10px">
+          <h4>必须实现</h4>
+          <ol>
+            <li>注册 <code>run_cli</code> 工具，参数 <code>{ command: string, args?: string[] }</code>，只允许白名单命令（如 <code>git</code>）。</li>
+            <li>用 <code>node:child_process</code> 执行，转发 <code>AbortSignal</code>。</li>
+            <li>用 <code>ctx.jobs.start</code> 注册后台作业，实时 append stdout/stderr；结果用 <code>JobOutcome.result</code>。</li>
+            <li>用 <code>ctx.jobs.readAt</code> 读输出，<code>ctx.jobs.kill</code> 取消；不要自建文本环。</li>
+            <li>README。</li>
+          </ol>
+          <h4>可选加分</h4>
+          <ul>
+            <li>客户端面板。</li>
+            <li>错误映射。</li>
+            <li>输出分页。</li>
+            <li>超时。</li>
+          </ul>
+          <h4>文件清单</h4>
+          <ul>
+            <li><code>src/index.ts</code></li>
+            <li><code>src/cli-runner.ts</code></li>
+            <li><code>package.json</code></li>
+            <li><code>cordis.patch.yml</code></li>
+            <li><code>README.md</code></li>
+            <li>可选 <code>src/client/</code></li>
+          </ul>
+          <h4>验收清单</h4>
+          <ul>
+            <li>能启动、看到流式输出、能取消、超时生效。</li>
+            <li>能解释前后台差异。</li>
+            <li>没有重复造官方的 jobs API。</li>
+          </ul>
+          <p style="font-size:13px;color:var(--muted);margin:8px 0 0">预估 16–20h。对应阶段：0、2、3、4、6、7；可选 5。</p>
+        </div>
+      </article>
+
+      <article class="ex capstone-card" data-capstone="C" style="margin:0">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+          <div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+              <span class="chip">项目 C</span>
+              <span class="chip">12–16h</span>
+            </div>
+            <h3 style="font-size:17px;margin:0">客户端 UI 小组件</h3>
+          </div>
+          <button type="button" class="iconbtn" data-capstone-pick="C" aria-pressed="false">选这个</button>
+        </div>
+        <div class="cap-body" style="margin-top:10px">
+          <h4>必须实现</h4>
+          <ol>
+            <li>注册 <code>conversation.view</code> slot 或在一个现有视图加一个面板，显示当前会话的工具调用次数。</li>
+            <li>通过 <code>connection.rpc.call</code> 或一个自建 remote 服务从宿主拿数据。</li>
+            <li>React 组件 + hooks；样式注册与清理（<code>ctx.effect</code>）。</li>
+            <li>构建客户端 bundle（<code>window.__ModuleLoader__.load</code>）。</li>
+            <li>README。</li>
+          </ol>
+          <h4>可选加分</h4>
+          <ul>
+            <li>自动刷新。</li>
+            <li>深色与浅色。</li>
+            <li>错误态。</li>
+            <li>空状态。</li>
+          </ul>
+          <h4>文件清单</h4>
+          <ul>
+            <li><code>src/client/index.ts</code></li>
+            <li><code>src/client/View.tsx</code></li>
+            <li><code>src/client/api.ts</code></li>
+            <li><code>package.json</code>（含 <code>dsh.client</code>）</li>
+            <li><code>tsconfig.client.json</code></li>
+            <li>构建脚本</li>
+            <li><code>README.md</code></li>
+          </ul>
+          <h4>验收清单</h4>
+          <ul>
+            <li>在 dsh web 里出现小组件并随状态更新。</li>
+            <li>卸载后无样式残留。</li>
+            <li><code>dsh.client.platform</code> 与 <code>exports["./client"]</code> 正确。</li>
+          </ul>
+          <p style="font-size:13px;color:var(--muted);margin:8px 0 0">预估 12–16h。对应阶段：0、2、3（最小宿主）、5、6、7。</p>
+        </div>
+      </article>
+
+    </div>
+    <p style="font-size:12.5px;color:var(--muted);margin:8px 0 0">选择只影响本页展示，不会修改 profile 或插件文件。</p>
+  </div>
+</div>
+
+<div class="block">
+  <h4>推进节奏</h4>
+  <p class="placeholder-note">项目在 <code>practice/stage-7</code> 分支上做；完成后切回 <code>main</code>。</p>
+  <div class="ex" data-ex="7.1">
+    <label class="ex-head"><input type="checkbox" data-check="7.1"><span class="t"><span class="ex-id">7.1</span>选定毕业项目并写需求</span></label>
+    <p>从 A/B/C 选一个，写一页需求：用户、核心行为、输入输出、失败场景、验收命令。</p>
+    <details style="margin:8px 0 0 26px">
+      <summary style="cursor:pointer;color:var(--accent);font-size:13px">思路提示（3 条）</summary>
+      <ul>
+        <li>先用一句话说清「谁在什么场景调用它」，再写功能。</li>
+        <li>把统一验收 6 条抄进需求，逐条留证据位置。</li>
+        <li>接口不确定时先写最小版本，别在需求阶段把 API 定死。</li>
+      </ul>
+    </details>
+    <div class="refs" style="font-size:12.5px;color:var(--muted);margin:6px 0 0 26px">参考：本页三张规格卡 · 统一验收 6 条</div>
+    <div class="accept" style="margin:8px 0 0 26px;font-size:13px;color:var(--muted)">验收：需求里至少有一条可执行的验收命令；选定项目后其余卡片折叠；在 <code>practice/stage-7</code> 分支上开工。</div>
+  </div>
+  <div class="ex" data-ex="7.2">
+    <label class="ex-head"><input type="checkbox" data-check="7.2"><span class="t"><span class="ex-id">7.2</span>实现、构建并安装</span></label>
+    <p>按规格实现，<code>npm run build</code> 通过，装进测试 profile，启动并触发一次核心行为。</p>
+    <details style="margin:8px 0 0 26px">
+      <summary style="cursor:pointer;color:var(--accent);font-size:13px">思路提示（3 条）</summary>
+      <ul>
+        <li>先跑通纯 JS 最小版本，再补 TypeScript 和声明。</li>
+        <li>构建后确认 <code>assert-artifacts</code> 覆盖新增产物。</li>
+        <li>安装后先用 <code>--dump-config</code> 确认条目，再 boot 验证模块加载。</li>
+      </ul>
+    </details>
+    <div class="refs" style="font-size:12.5px;color:var(--muted);margin:6px 0 0 26px">参考：<code>scripts/assert-artifacts.mjs</code> · <code>cordis.patch.yml</code> · <code>~/.dsh/profiles/&lt;name&gt;</code></div>
+    <div class="accept" style="margin:8px 0 0 26px;font-size:13px;color:var(--muted)">验收：安装成功；启动 profile 无报错；核心行为可见。</div>
+  </div>
+  <div class="ex" data-ex="7.3">
+    <label class="ex-head"><input type="checkbox" data-check="7.3"><span class="t"><span class="ex-id">7.3</span>写 README 并演示验收</span></label>
+    <p>README 写安装、配置、调用示例、已知限制；准备一条演示命令或一次点击，逐条过统一验收。</p>
+    <details style="margin:8px 0 0 26px">
+      <summary style="cursor:pointer;color:var(--accent);font-size:13px">思路提示（3 条）</summary>
+      <ul>
+        <li>演示从干净 profile 开始，按 README 复制命令。</li>
+        <li>失败场景也演示一次，证明错误信息可用。</li>
+        <li>记录你偏离官方做法的地方和原因，统一验收第 5 条会问。</li>
+      </ul>
+    </details>
+    <div class="refs" style="font-size:12.5px;color:var(--muted);margin:6px 0 0 26px">参考：统一验收 6 条 · <code>README.md</code> 的安装章节</div>
+    <div class="accept" style="margin:8px 0 0 26px;font-size:13px;color:var(--muted)">验收：别人照 README 能复现；统一验收 6 条都有证据；能在 3 分钟内演示核心行为。</div>
+  </div>
+</div>
+
+<div class="block">
+  <h4>统一验收（6 条）</h4>
+  <ol>
+    <li><strong>能安装</strong>：<code>dsh plugin add</code> 成功，<code>--dump-config</code> 出现条目。</li>
+    <li><strong>能加载</strong>：启动 profile 无报错，工具或 UI 可用。</li>
+    <li><strong>有 README</strong>：安装、配置、调用示例、已知限制。</li>
+    <li><strong>至少一个可演示行为</strong>：一条命令或一次点击能展示核心功能。</li>
+    <li><strong>能解释取舍</strong>：为什么用这个插件形态；哪些按官方最佳实践；哪些参考了本项目的特有做法及原因。</li>
+    <li><strong>代码检查</strong>：参数 schema 有校验；output schema 有 <code>required</code>；<code>timeoutMs</code> 不为 0；没有已弃用 API；资源有清理。</li>
+  </ol>
+  <p>第 6 条里的 <code>required</code> 有一个实现细节：<code>defineTool</code> 的对象式 <code>output.schema</code> 是 <code>ValueSchemaSpec</code>，不接受 <code>required</code> 键，对象里的字段默认全必填。要写完整 JSON Schema，走原始 <code>ToolDefinition</code>；否则在 README 里说明字段默认必填，别硬塞一个会被类型检查拒绝的键。</p>
+</div>
+
+<div class="block">
+  <h4>完成标志</h4>
+  <p>安装、加载、README、至少一个可演示行为、能解释取舍。统一验收 6 条都有证据；能在 3 分钟内演示核心行为；能指出代码里哪些是官方做法、哪些是本项目特有做法及原因。</p>
+</div>
+
+<script>
+/* 毕业项目卡：选中一个后高亮，其余折叠。键名 dsh-learn:capstone。
+   如果主会话把本片段用 innerHTML 注入，内联脚本不会执行；需要把这段并入主脚本。 */
+(function () {
+  "use strict";
+  var KEY = "dsh-learn:capstone";
+  var root = document.querySelector("[data-capstone-group]");
+  if (!root || root.dataset.capstoneBound === "1") return;
+  root.dataset.capstoneBound = "1";
+
+  function read() {
+    try {
+      var value = localStorage.getItem(KEY);
+      return value === "A" || value === "B" || value === "C" ? value : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function write(value) {
+    try { localStorage.setItem(KEY, value); } catch (e) {}
+  }
+
+  function apply(choice) {
+    var cards = root.querySelectorAll("[data-capstone]");
+    Array.prototype.forEach.call(cards, function (card) {
+      var picked = card.getAttribute("data-capstone") === choice;
+      var body = card.querySelector(".cap-body");
+      var button = card.querySelector("[data-capstone-pick]");
+      card.style.borderColor = picked ? "var(--accent)" : "";
+      card.style.boxShadow = picked ? "0 0 0 1px var(--accent)" : "";
+      card.style.opacity = choice && !picked ? "0.62" : "";
+      if (body) body.hidden = Boolean(choice) && !picked;
+      if (button) {
+        button.textContent = picked ? "已选定" : (choice ? "改选这个" : "选这个");
+        button.setAttribute("aria-pressed", String(picked));
+      }
+    });
+  }
+
+  root.addEventListener("click", function (event) {
+    var button = event.target.closest("[data-capstone-pick]");
+    if (!button) return;
+    var choice = button.getAttribute("data-capstone-pick");
+    if (choice !== "A" && choice !== "B" && choice !== "C") return;
+    write(choice);
+    apply(choice);
+  });
+
+  apply(read());
+})();
+</script>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+"use strict";
+
+/* ================= localStorage ================= */
+
+var LS = {
+  get: function (key, fallback) {
+    try {
+      var value = localStorage.getItem(key);
+      return value === null ? fallback : value;
+    } catch (e) {
+      return fallback;
+    }
+  },
+  set: function (key, value) {
+    try { localStorage.setItem(key, value); } catch (e) {}
+  }
+};
+
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(function () {});
+    return;
+  }
+  var ta = document.createElement("textarea");
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  ta.remove();
+}
+
+/* ================= 进度 ================= */
+
+function exerciseKey(id) {
+  return "dsh-learn:exercise-" + id;
+}
+
+function updateProgress() {
+  var boxes = Array.prototype.slice.call(document.querySelectorAll("[data-check]"));
+  var total = boxes.length;
+  var done = boxes.filter(function (box) { return box.checked; }).length;
+  var pct = total ? Math.round(done / total * 100) : 0;
+
+  document.querySelectorAll("[data-progress-text]").forEach(function (el) {
+    el.textContent = done + "/" + total;
+  });
+  document.querySelectorAll("[data-progress-pct]").forEach(function (el) {
+    el.textContent = pct + "%";
+  });
+  document.querySelectorAll("[data-progress-bar]").forEach(function (el) {
+    el.style.width = pct + "%";
+  });
+
+  document.querySelectorAll("section[data-stage]").forEach(function (section) {
+    var stageBoxes = Array.prototype.slice.call(section.querySelectorAll("[data-check]"));
+    var stageDone = stageBoxes.filter(function (box) { return box.checked; }).length;
+    var chip = section.querySelector("[data-stage-count]");
+    if (chip) chip.textContent = stageDone + " / " + stageBoxes.length + " 练习";
+  });
+
+  document.querySelectorAll(".toc a[href^='#stage-']").forEach(function (link) {
+    var section = document.querySelector(link.getAttribute("href"));
+    var sectionBoxes = section
+      ? Array.prototype.slice.call(section.querySelectorAll("[data-check]"))
+      : [];
+    link.classList.toggle(
+      "done",
+      sectionBoxes.length > 0 && sectionBoxes.every(function (box) { return box.checked; })
+    );
+  });
+}
+
+function restoreProgress() {
+  document.querySelectorAll("[data-check]").forEach(function (box) {
+    box.checked = LS.get(exerciseKey(box.dataset.check), "") === "done";
+  });
+}
+
+/* ================= 学习路径 ================= */
+
+function syncPathButtons(path) {
+  document.querySelectorAll("[data-path-choice]").forEach(function (button) {
+    button.setAttribute("aria-pressed", String(button.dataset.pathChoice === path));
+  });
+}
+
+function setPath(path) {
+  path = path === "short" ? "short" : "full";
+  document.documentElement.dataset.path = path;
+  LS.set("dsh-learn:path", path);
+  syncPathButtons(path);
+  document.querySelectorAll("section[data-expanded]").forEach(function (section) {
+    section.removeAttribute("data-expanded");
+  });
+}
+
+/* ================= 主题 ================= */
+
+function syncThemeButton() {
+  var theme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  var button = document.querySelector("[data-theme-toggle]");
+  if (button) button.textContent = theme === "dark" ? "浅色" : "深色";
+}
+
+function setTheme(theme) {
+  theme = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = theme;
+  LS.set("dsh-learn:theme", theme);
+  syncThemeButton();
+}
+
+/* ================= 事件 ================= */
+
+document.addEventListener("click", function (event) {
+  var copyButton = event.target.closest("[data-copy]");
+  if (copyButton) {
+    copyText(copyButton.getAttribute("data-copy"));
+    var oldLabel = copyButton.textContent;
+    copyButton.textContent = "已复制";
+    setTimeout(function () { copyButton.textContent = oldLabel; }, 1200);
+    return;
+  }
+
+  var pathButton = event.target.closest("[data-path-choice]");
+  if (pathButton) {
+    setPath(pathButton.dataset.pathChoice);
+    return;
+  }
+
+  var themeButton = event.target.closest("[data-theme-toggle]");
+  if (themeButton) {
+    setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+    return;
+  }
+
+  var expandButton = event.target.closest("[data-expand]");
+  if (expandButton) {
+    var section = expandButton.closest("section[data-stage]");
+    if (section) section.setAttribute("data-expanded", "1");
+  }
+});
+
+document.addEventListener("change", function (event) {
+  var box = event.target.closest("[data-check]");
+  if (!box) return;
+  LS.set(exerciseKey(box.dataset.check), box.checked ? "done" : "");
+  updateProgress();
+});
+
+/* ================= 启动 ================= */
+
+restoreProgress();
+syncPathButtons(document.documentElement.dataset.path === "short" ? "short" : "full");
+syncThemeButton();
+updateProgress();
+</script>
+</body>
+</html>

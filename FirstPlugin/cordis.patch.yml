@@ -1,0 +1,3 @@
+- insert:
+    - id: dsh-plugin-smoke
+      name: file:///E:/workspace/GitRepository/dsh-claude-delegate/FirstPlugin/index.js

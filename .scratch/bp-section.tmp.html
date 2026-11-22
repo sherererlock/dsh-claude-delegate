@@ -1,0 +1,141 @@
+    <section id="stage-bp" data-path="both">
+      <div class="meta">
+        <span class="chip">对照表</span>
+        <span class="chip">毕业前检查</span>
+        <span class="chip">9 组最佳实践 · 15 个偏离 · 8 个灰色地带</span>
+      </div>
+      <h2 class="stage-title"><span class="n">REFERENCE</span> 最佳实践对照</h2>
+      <p class="goal">把散在阶段里的「官方推荐 vs 本项目做法」汇总成一张检查表。毕业项目开工前过一遍，分清哪些照官方写、哪些只在这个仓库成立。</p>
+
+      <div class="block">
+        <h4>9 组官方最佳实践</h4>
+        <p>按官方文档的主题分组。每组只留一句核心推荐；细讲在各阶段正文，出处以正文标注为准。</p>
+        <ol class="bp-groups">
+          <li class="bp-group"><b><span class="n">01</span>Cordis 插件契约与生命周期</b>导出 <code>name</code>、<code>inject</code>、<code>apply</code>；所有注册都是可逆副作用；定时器、连接、watcher 这类 Cordis 不管理的资源包进 <code>ctx.effect()</code>；依赖用 <code>inject</code> 表达，不手排启动顺序。<span class="src">出处：cordis-tutorial/01–03 · cordis-primer</span></li>
+          <li class="bp-group"><b><span class="n">02</span>服务依赖：硬依赖与可选依赖</b>缺了就不能工作，写进 <code>inject</code>；缺了还能降级，不写 <code>inject</code>，在使用处用 <code>ctx.get(name)</code> 探测。<code>inject</code> 在运行中持续跟踪，服务消失会卸载依赖方。<span class="src">出处：cordis-tutorial/03 · cordis-api/context</span></li>
+          <li class="bp-group"><b><span class="n">03</span>配置</b>导出同名 <code>Config</code> 接口和 schemastery schema；默认值与约束都写进 schema，非法配置在加载时 FAILED；patch 按 id 替换整个 <code>config</code>，不是深合并。<span class="src">出处：cordis-tutorial/05 · basic/config · architecture（Profile 与组合包）</span></li>
+          <li class="bp-group"><b><span class="n">04</span>工具注册</b>第一方工具用 <code>defineTool</code> 推导并校验 <code>args</code>；<code>output.schema</code> 校验返回值，<code>output.render</code> 只做模型可见内容；<code>parameters</code> 用统一 JSON value DSL，对象显式写 <code>additionalProperties</code>；<code>execute</code> 转发 <code>exec.signal</code>；<code>timeoutMs</code> 是正有限值。<span class="src">出处：basic/tool · subsystems/tools · extension-cookbook</span></li>
+          <li class="bp-group"><b><span class="n">05</span>技能</b>运行时技能用 <code>ctx.skills.register</code>，随插件卸载；用户可编辑的内容优先放文件系统 skill，随包固定的才用运行时注册。<span class="src">出处：subsystems/skills</span></li>
+          <li class="bp-group"><b><span class="n">06</span>后台作业</b>用 <code>ctx.jobs.start</code> 生产，<code>run</code> 同步返回 hooks；输出用 <code>handle.append</code>，结果用 <code>JobOutcome.result</code>；观察者用 <code>readAt</code> 非消耗读，模型用 <code>read</code>；取消用 <code>kill(id, caller, reason)</code>；新 kind 用声明合并扩展 <code>JobKindMap</code>。<span class="src">出处：subsystems/jobs</span></li>
+          <li class="bp-group"><b><span class="n">07</span>客户端</b>在 <code>package.json</code> 声明 <code>dsh.client</code>，导出 <code>./client</code>；<code>dsh.client.inject</code> 只是信息性依赖边，模块请求用 <code>external</code>；slot 用 <code>ctx.slots.inject</code> 包 <code>ctx.slots.register</code>；Remote 方法用 <code>@Remote</code> 并走生成契约；bundle 是一次 <code>__ModuleLoader__.load({ id, factory })</code> 调用。<span class="src">出处：subsystems/client-modules · slots · api-gateway</span></li>
+          <li class="bp-group"><b><span class="n">08</span>会话、持久化、子代理</b>DSH 的持久化是 <code>SessionEvent</code> 日志，跨重载的事实进会话事件；当前模型用 <code>agent.model.current()</code>；委派给另一个 agent 产品用 <code>ctx.subagents</code> 提供方注册表。<span class="src">出处：subsystems/persistence · session-projection · subagent</span></li>
+          <li class="bp-group"><b><span class="n">09</span>构建与发布</b><code>package.json</code> 的 <code>type</code> / <code>main</code> / <code>types</code> / <code>exports</code> 齐全，peer 与 dev 成对；schemastery 放 <code>dependencies</code>；<code>files</code> 精确；每个 <code>lib/client.js</code> 必须产出；可替换能力才拆包，按 Service Definition / Provider / Consumer 三角色组织。<span class="src">出处：adding-a-package · publish · architecture（能力 seam）</span></li>
+        </ol>
+      </div>
+
+      <div class="block">
+        <h4>15 个偏离汇总</h4>
+        <p>编号与阶段正文里的 D1–D14 对应，另有一条 patch 附加项。最后一列链回正文；读原因和取舍时以正文为准。表格在窄屏下横向滚动。</p>
+        <div class="bp-table-wrap" tabindex="0" role="region" aria-label="15 个偏离汇总表，可横向滚动">
+          <table class="bp-table">
+            <thead>
+              <tr><th>编号</th><th>官方推荐</th><th>本项目做法</th><th>你该怎么做</th><th>正文</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>D1</td><td>读调用方当前模型用 owning domain service：<code>agent.model.current()</code>，或 awaited projection handle。<code>stateOf(session,key)</code> 已废弃。</td><td><code>ctx.get('sessionProjections').stateOf(session,'modelSelection')</code>，取 <code>pending ?? lastUsed</code>。<code>src/index.ts:194-215</code>。</td><td>新代码用 <code>exec.agent.model.current()</code>；改旧代码先跑一次真实委派。</td><td>阶段 4 · <a href="#bp-4-stateof">主模型读取</a></td></tr>
+              <tr><td>D2</td><td>Remote 走严格 Typert 生成，包导出 <code>./typert</code> 与 <code>./remote</code>，Client 用 <code>ctx.remote.&lt;ns&gt;</code>。</td><td>SRC 运行时推断 + 客户端手写 <code>rpc.call</code>。<code>src/remote.ts:1-15</code>、<code>src/client/api.ts:162-166</code>。</td><td>优先生成契约；只能用 SRC 时，把参数名当公开 wire 契约并做运行时校验。</td><td>阶段 4 · <a href="#bp-4-rpc">Remote 契约</a></td></tr>
+              <tr><td>D3</td><td>作业文本用 <code>ctx.jobs.readAt</code> 非消耗读；取消用 <code>ctx.jobs.kill</code> / <code>ctx.remote.job.kill</code>。</td><td>自建 <code>JobTracker</code> 文本环 + <code>claudeCode/cancel</code>。<code>src/tracker.ts:1-12</code>、<code>src/remote.ts:163-172</code>。</td><td>文本和取消先用官方入口；只有结构化事件等官方环没有的数据才自建。</td><td>阶段 4 · <a href="#bp-4-jobs">作业流</a><br>阶段 5 · <a href="#bp-5-jobsources">三路作业源</a></td></tr>
+              <tr><td>D4</td><td><code>defineTool</code> 推导并校验 <code>args</code>；<code>output.schema</code> 强制 canonical 形状，必填属性标 <code>required</code>。</td><td><code>execute(args: any)</code>、<code>render(_args: any, value: any)</code>；output schema 没有 <code>required</code>。<code>src/index.ts:1288-1329</code>。</td><td>新工具保留推断；必填字段写进 schema；不要用 <code>any</code> 逃逸。</td><td>阶段 3 · <a href="#bp-3-tool-contract">工具契约</a></td></tr>
+              <tr><td>D5</td><td>配置约束写进 schema，非法配置在加载时 FAILED。</td><td><code>permissionMode</code> / <code>effort</code> 是 <code>z.string()</code>；<code>timeoutMs</code> 无下限。<code>src/index.ts:106-116</code>。</td><td>用 <code>z.union([...枚举])</code> 和 <code>.min()</code>；要跟随上游时，在 <code>apply</code> 开头校验一次。</td><td>阶段 3 · <a href="#bp-3-config-enums">配置枚举</a></td></tr>
+              <tr><td>D6</td><td><code>timeoutMs</code> 必须是正有限值；省略表示无截止。</td><td>注册时无条件 <code>timeoutMs: config.timeoutMs</code>；per-call 只影响内部计时器。<code>src/index.ts:1328</code>、<code>:1340</code>。</td><td>只在大于 0 时声明 <code>timeoutMs</code>；把 per-call 只能缩短预算写清楚；不要用 0 表示不超时。</td><td>阶段 3 · <a href="#bp-3-tool-contract">工具契约</a></td></tr>
+              <tr><td>D7</td><td>委派给另一个 agent 产品用 <code>ctx.subagents</code> 提供方注册表。</td><td>自建 <code>claude_code</code> 工具；<code>config.subagents</code> 是 Anthropic SDK 的 <code>AgentDefinition</code>。<code>src/index.ts:57-66</code>、<code>:171-180</code>。</td><td>分清两个 subagent；DSH 的子代理走 <code>ctx.subagents</code>，SDK 的 agents 只在透传时用。</td><td>阶段 4 · <a href="#bp-4-subagents">子代理</a></td></tr>
+              <tr><td>D8</td><td>持久化用 <code>ctx.sessionPersistence</code> 存 <code>SessionEvent</code>；跨重载的事实用会话事件。</td><td>自建 <code>~/.dsh/claude-delegate-sessions.json</code>；进程内 <code>active</code> 集合。<code>src/session-store.ts:71-76</code>、<code>:141-149</code>。</td><td>DSH 自己的状态优先会话事件；旁路文件只存外部 Claude 句柄。</td><td>阶段 4 · <a href="#stage-4">宿主业务载荷</a></td></tr>
+              <tr><td>D9</td><td><code>dsh.client.inject</code> 是信息性 package 依赖；额外模块请求用 <code>dsh.client.external</code>。</td><td><code>inject</code> 仍列不存在的 <code>@deepseek-ai/dsh-client-runtime</code>。<code>package.json:32-36</code>。</td><td>服务依赖写 <code>export const inject</code>；模块请求写 <code>external</code>；不要照抄旧包名。</td><td>阶段 5 · <a href="#bp-5-client-inject">客户端清单</a></td></tr>
+              <tr><td>D10</td><td>客户端 bundle 只注册 factory，seed 表由 shell 决定；缺 <code>lib/client.js</code> 时激活失败。</td><td>手工 esbuild banner/footer + 硬编码 <code>SEED_MODULES</code>。<code>scripts/build-client.mjs:26-83</code>。</td><td>契约可学、实现不必抄；把「每个 require 必须在 seed 表」写成构建断言。</td><td>阶段 6 · <a href="#stage-6">构建与打包</a></td></tr>
+              <tr><td>D11</td><td>非 Cordis 管理的资源包 <code>ctx.effect</code> 并返回 disposer。</td><td><code>installStyles()</code> 直接 append <code>&lt;style&gt;</code>，没有移除函数。<code>src/client/styles.ts:883-891</code>。</td><td>事件、定时器、连接必须用 <code>ctx.effect</code>；全局样式若手动注入，要幂等并标记 owner。</td><td>阶段 5 · <a href="#bp-5-styles">样式注入</a></td></tr>
+              <tr><td>D12</td><td>显式 <code>engines.dsh</code>；schemastery 进 <code>dependencies</code>；<code>files</code> 精确。</td><td>无 <code>engines.dsh</code>，靠 peer 范围；schemastery 在 peer；<code>files</code> 含整个 <code>lib</code>。<code>package.json:19-24</code>、<code>:61-73</code>。</td><td>显式写 <code>engines.dsh</code>；<code>files</code> 用精确列表；发布前在干净 profile 里安装一次。</td><td>阶段 6 · <a href="#stage-6">构建与打包</a></td></tr>
+              <tr><td>D13</td><td>包 README 应准确记录公开 API。</td><td>README 把 <code>subagents</code> 列为工具参数（<code>README.md:154</code>），工具 schema 没有它（<code>src/index.ts:1206-1287</code>）。</td><td>以 <code>parameters</code> / <code>output.schema</code> 源码为准；README 参数表与源码交叉核对。</td><td>阶段 4 · <a href="#bp-4-subagents">子代理</a></td></tr>
+              <tr><td>D14</td><td>扩展 <code>JobKindMap</code>；<code>JobSpec.toolCall</code> 记录创建调用。</td><td><code>jobs: any</code>；<code>kind: 'claude-code'</code> 未声明合并；未传 <code>toolCall</code>。<code>src/index.ts:974</code>、<code>:989-996</code>。</td><td>做声明合并 + 窄接口；从 <code>exec.callId</code> 传 <code>toolCall</code>。</td><td>阶段 4 · <a href="#bp-4-jobs">作业流</a></td></tr>
+              <tr><td>附</td><td>patch 按 id 定位行并替换整个 <code>config</code>，不是深合并；用户覆盖要重述每个键。</td><td>组合包 patch 只写 4 个键，其余靠 schema 默认。<code>cordis.patch.yml:10-17</code>。</td><td>覆盖 <code>config</code> 要写全；schema 默认值只补没写的键，不会与上一层合并。</td><td>阶段 6 · <a href="#stage-6">patch 与配置</a></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="bp-note">D15 不在表内：它讲的是错误映射、模型 / effort 跟随这类产品边界，不是机制偏离。阶段 4 把它当「本项目知识」处理。</p>
+      </div>
+
+      <div class="block">
+        <h4>8 个灰色地带</h4>
+        <p>官方 docs 没写清楚、只能从包 README、类型声明或运行时反推的地方。学的是「怎么找契约」，不是背结论。</p>
+        <div class="bp-table-wrap" tabindex="0" role="region" aria-label="8 个灰色地带表，可横向滚动">
+          <table class="bp-table">
+            <thead>
+              <tr><th>编号</th><th>灰色地带</th><th>事实来源</th><th>学习者怎么对待</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>G1</td><td><code>window.__ModuleLoader__.load</code> 是客户端 bundle 的运行时契约，但 <code>docs/</code> 全量没有这个字样。</td><td>官方包 <code>dsh-client-modules</code> README、<code>src/client/manifest.ts</code> JSDoc、<code>scripts/build-client.mjs</code>。</td><td>把「id 等于包名、factory 只 require seed 表」当硬契约；读包 README 和源码。</td></tr>
+              <tr><td>G2</td><td>客户端 <code>ctx.jobs</code> 服务（<code>watchRows</code> / <code>observe</code> / <code>kill</code>）没有 API 文档。</td><td><code>config-catalog</code> 只列 <code>dsh-client-ui-jobs</code> 包名；<code>src/client/types.ts:36-68</code> 是逆向形状。</td><td>优先 <code>ctx.remote.job.list/follow/kill</code>；读内部服务要写兼容层和失败提示。</td></tr>
+              <tr><td>G3</td><td><code>agent.model.current()</code> 是公开类型，但没有 docs 章节。</td><td><code>@deepseek-ai/dsh-agent</code> 的 <code>runtime-types.d.ts:47-63</code>、<code>model-selection.d.ts:15-20</code>。</td><td>记住 owning domain service 优先；类型声明也是官方契约。</td></tr>
+              <tr><td>G4</td><td><code>sessionProjections.stateOf(session,key)</code> 在包里标 <code>@deprecated</code>，docs 页面不列。</td><td>包内 <code>.d.ts:225-227</code>；首次读会 <code>logger.warn</code>；<code>upgrade-guide/v0.2.1-rc.2</code> 有迁移说明。</td><td>用 <code>agent.model.current()</code> 或 awaited <code>handle.stateOf(session)</code>；不要因为「现在还能跑」继续用。</td></tr>
+              <tr><td>G5</td><td>仓外插件的 Typert 生成没有文档路径。</td><td><code>api-gateway</code> 的严格生成流水线只描述仓内构建。</td><td>SRC 参数名当公开 API，写契约测试；能进仓就走严格生成。</td></tr>
+              <tr><td>G6</td><td><code>dsh.client.inject</code> 的语义：JSDoc 说信息性，<code>client-modules</code> 说 package edges。</td><td><code>DshClientManifest</code> JSDoc 与 <code>client-modules</code> §wire 两处措辞不一致。</td><td>服务注入看 <code>export const inject</code>；模块请求看 <code>external</code>。</td></tr>
+              <tr><td>G7</td><td><code>ctx.jobs.kill</code> 是否通知模型。</td><td><code>jobs</code> 文档说 owner agent 仍收到完成通知；本项目 <code>tracker.ts:1-12</code> 说相反。</td><td>以当前文档为准；升级 DSH 后实测一次，再决定是否保留自建取消。</td></tr>
+              <tr><td>G8</td><td>Cordis 4.x 没有 optional-inject 对象形式。</td><td>官方 docs 只推荐「硬依赖 inject / 可选 ctx.get」；<code>src/index.ts:21-26</code>、<code>CHANGELOG.md:42-43</code> 记录对象形式会死锁。</td><td>硬依赖写 <code>inject</code>，可选依赖用 <code>ctx.get</code>；不要发明 <code>{ required, optional }</code>。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="block bp-lists">
+        <h4>三张清单</h4>
+        <p>读完教程后按这三张清单复查自己的代码。</p>
+
+        <h4>可以照抄</h4>
+        <ol>
+          <li>插件骨架：<code>name</code> / <code>inject</code> / <code>apply</code>，配置用同名接口 + schemastery。</li>
+          <li>可选依赖：<code>ctx.get('service')</code>，不要写进 <code>inject</code>。</li>
+          <li>工具四段式：<code>parameters</code> / <code>output.schema</code> / <code>output.render</code> / <code>execute</code>，加 <code>presentCall</code>。</li>
+          <li><code>exec.signal</code> 转发 + <code>timeoutMs</code> 声明；注意 0 值和 per-call 语义。</li>
+          <li>后台作业生产方：<code>jobs.start({ kind, label, owner: sessionId, run })</code>，<code>run</code> 同步返回 <code>{ cancel, done }</code>，推流用 <code>handle.append</code>，结果用 <code>JobOutcome.result</code>。</li>
+          <li>客户端 slot 贡献：<code>ctx.slots.inject(key, () =&gt; ctx.slots.register({ name, id, order }, Component))</code>。</li>
+          <li>客户端清单：<code>dsh.client.platform: 'web'</code> + <code>exports["./client"]</code>。</li>
+          <li>组合包：<code>dsh.bundle.patch</code> + <code>cordis.patch.yml</code> 的 <code>insert</code> 行；patch 只写用户大概率保留的默认值。</li>
+          <li>构建断言：缺 <code>lib/client.js</code> 直接失败；新增模块时同步更新产物清单。</li>
+          <li>运行时技能：<code>ctx.skills.register</code> + <code>source: 'runtime'</code>，随插件安装/卸载。</li>
+        </ol>
+
+        <h4>不要照抄</h4>
+        <div class="bp-table-wrap" tabindex="0" role="region" aria-label="不要照抄清单，可横向滚动">
+          <table class="bp-table">
+            <thead>
+              <tr><th>不要照抄</th><th>官方推荐</th><th>原因</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>sessionProjections.stateOf(session,key)</code></td><td><code>agent.model.current()</code> 或 awaited <code>handle.stateOf(session)</code></td><td>已 deprecated，未来会移除</td></tr>
+              <tr><td><code>args: any</code> / <code>value: any</code> + 无 <code>required</code> 的 output schema</td><td><code>defineTool</code> 推断 + 完整 canonical schema</td><td>放弃校验等于放弃工具契约</td></tr>
+              <tr><td><code>permissionMode: z.string()</code> / <code>effort: z.string()</code></td><td><code>z.union([...枚举])</code> + <code>.min()</code></td><td>配置错误应在加载时响亮失败</td></tr>
+              <tr><td>无条件 <code>timeoutMs: config.timeoutMs</code></td><td>正有限值或省略；per-call 语义写清</td><td>0 值会让注册失败；前台大值无效</td></tr>
+              <tr><td>自建文本输出环 + 自建取消（仅后台 job）</td><td><code>ctx.jobs.readAt</code> + <code>ctx.jobs.kill</code> / <code>ctx.remote.job.kill</code></td><td>官方已提供非消耗读与通知语义</td></tr>
+              <tr><td><code>dsh.client.inject</code> 当依赖注入用</td><td>Cordis <code>inject</code> 用服务名；模块请求用 <code>dsh.client.external</code></td><td>两者语义不同</td></tr>
+              <tr><td><code>jobs: any</code> + 不声明 <code>JobKindMap</code></td><td>类型声明合并 + 窄接口</td><td>失去编译期保护</td></tr>
+              <tr><td>手工样式注入不清理</td><td>非 Cordis 资源包 <code>ctx.effect</code></td><td>卸载 / HMR 后残留</td></tr>
+              <tr><td><code>config.subagents</code> 当 DSH 子代理</td><td>DSH 子代理用 <code>ctx.subagents</code></td><td>同名不同物</td></tr>
+              <tr><td>README 说 <code>subagents</code> 是工具参数</td><td>以 <code>parameters</code> 源码为准</td><td>文档与实现不一致</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>只作为本项目知识</h4>
+        <ol>
+          <li>Anthropic Agent SDK 的 <code>query()</code> / <code>Options</code> / <code>resume</code> / <code>includePartialMessages</code> / <code>AgentDefinition</code>。</li>
+          <li><code>src/live-shell.ts</code> 的自建 MCP shell（为了绕开「SDK 不转发 Bash stdout」）。</li>
+          <li><code>src/output-file.ts</code> 的 CLI 落盘输出回读 + 每会话路径白名单。</li>
+          <li><code>src/tracker.ts</code> 的结构化事件环（<code>thinking</code> / <code>tool_use</code> / <code>tool_result</code> / <code>console</code> / <code>warning</code>）。</li>
+          <li><code>src/session-store.ts</code> 的 workstream 注册表（外部 Claude 句柄的旁路持久化）。</li>
+          <li><code>src/delegate-model.ts</code> 的 fable→opus / opus→sonnet 跟随策略（产品默认值，不是机制）。</li>
+          <li>两阶段超时警告、错误文案映射、GBK 回退、<code>taskkill /T /F</code> 进程树清理。</li>
+          <li><code>cordis.patch.yml</code> 里的具体默认值（<code>permissionMode: acceptEdits</code>、<code>timeoutMs: 7200000</code>）。</li>
+          <li><code>scripts/build-client.mjs</code> 的 esbuild 包装细节（契约可学，实现不必抄）。</li>
+          <li>fork 历史与 <code>CHANGELOG</code> 0.1–0.8 的演进。</li>
+        </ol>
+      </div>
+
+      <div class="block">
+        <h4>毕业前检查</h4>
+        <ul>
+          <li>能用一句话说清 9 组最佳实践，并指出本项目在哪些地方偏离。</li>
+          <li>新代码不复制「不要照抄」清单里的写法。</li>
+          <li>遇到灰色地带，按「官方 docs → 包 README / 类型声明 → 运行时实测」的顺序找契约。</li>
+          <li>进度条共 24 项：阶段 0–6 的 21 个练习，加阶段 7 的 3 个推进里程碑。</li>
+        </ul>
+      </div>
+    </section>
