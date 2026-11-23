@@ -1,0 +1,5 @@
+- insert:
+    - id: dsh-plugin-greeting
+      name: file:///E:/workspace/GitRepository/dsh-claude-delegate/Greeting/src/index.ts
+      config:
+        greeting: Hello
